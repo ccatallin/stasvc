@@ -33,15 +33,17 @@ namespace FalxGroup.Finance.v1
                 responseMessage = string.IsNullOrEmpty(name)
                     ? $"This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided. Pass a name in the query string or in the request body for a personalized response."
                     : $"Hello, {name}. This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided.";
+
+                return new BadRequestObjectResult(responseMessage);
             }
             else
             {
                 responseMessage = string.IsNullOrEmpty(name)
                     ? $"This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully. Pass a name in the query string or in the request body for a personalized response."
                     : $"Hello, {name}. This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully.";
-            }
 
-            return new OkObjectResult(responseMessage);
+                return new OkObjectResult(responseMessage);
+            }
         }
     }
 }
