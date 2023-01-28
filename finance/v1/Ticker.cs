@@ -14,7 +14,7 @@ namespace FalxGroup.Finance.v1
     {
         [FunctionName("Ticker")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",  Route = "finance/v1/ticker/{symbol:alpha}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",  Route = "finance/v1/ticker/{symbol:alpha?}")] HttpRequest req,
             ILogger log,
             String symbol)
         {
@@ -26,9 +26,20 @@ namespace FalxGroup.Finance.v1
             dynamic data = JsonConvert.DeserializeObject(requestBody);
             name = name ?? data?.name;
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? $"This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully.";
+            string responseMessage;
+
+            if (string.IsNullOrEmpty(symbol))
+            {
+                responseMessage = string.IsNullOrEmpty(name)
+                    ? $"This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided. Pass a name in the query string or in the request body for a personalized response."
+                    : $"Hello, {name}. This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided.";
+            }
+            else
+            {
+                responseMessage = string.IsNullOrEmpty(name)
+                    ? $"This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully. Pass a name in the query string or in the request body for a personalized response."
+                    : $"Hello, {name}. This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully.";
+            }
 
             return new OkObjectResult(responseMessage);
         }
