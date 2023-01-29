@@ -7,43 +7,67 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using System.Text;
 
 namespace FalxGroup.Finance.v1
 {
     public static class Ticker
     {
+        private static cc.net.HttpQuery googleFinanceHttpQuery = new cc.net.HttpQuery("https://www.google.com/finance/quote/");
+        private static cc.net.HttpQuery yahooFinanceHttpQuery = new cc.net.HttpQuery("https://finance.yahoo.com/quote/");
+
         [FunctionName("Ticker")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",  Route = "finance/v1/ticker/{symbol:alpha?}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",  Route = "finance/v1/ticker/{symbol:alpha?}/{market:alpha?}")] HttpRequest req,
             ILogger log,
-            String symbol)
+            string symbol,
+            string market)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+            ObjectResult result = null;
 
-            string name = req.Query["name"];
-
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
-
-            string responseMessage;
-
-            if (string.IsNullOrEmpty(symbol))
+            try 
             {
-                responseMessage = string.IsNullOrEmpty(name)
-                    ? $"This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided. Pass a name in the query string or in the request body for a personalized response."
-                    : $"Hello, {name}. This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided.";
+                if (string.IsNullOrEmpty(symbol))
+                {
+                    result = new BadRequestObjectResult($"This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided.");
+                }
+                else
+                {
+                    string bodyResponse = string.Empty;
+                    StringBuilder responseBuilder = new StringBuilder();
+                    var upperSymbol = symbol.ToUpperInvariant();
 
-                return new BadRequestObjectResult(responseMessage);
+                    if (string.IsNullOrEmpty(market))
+                    {
+
+                        bodyResponse = await yahooFinanceHttpQuery.GetStringAsync($"{upperSymbol}");
+
+                        var startIndex = bodyResponse.IndexOf($"data-symbol=\"{upperSymbol}\"");
+                        var endIndex = bodyResponse.IndexOf("</fin-streamer>", startIndex);
+                        startIndex = bodyResponse.IndexOf(">", startIndex) + 1;
+
+                        responseBuilder.Append("{\"").Append(upperSymbol).Append("\":")
+                            .Append(bodyResponse.Substring(startIndex, endIndex - startIndex)).Append("}");
+                    }
+                    else
+                    {
+                        bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{upperSymbol}:{market.ToUpperInvariant()}");
+                    }
+
+                    // string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                    // dynamic data = JsonConvert.DeserializeObject(requestBody);
+                    // name = name ?? data?.name;
+
+                    result = new OkObjectResult(responseBuilder.ToString());
+                }
             }
-            else
+            catch (Exception exception) 
             {
-                responseMessage = string.IsNullOrEmpty(name)
-                    ? $"This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                    : $"Hello, {name}. This HTTP {req.Method} triggered. Function for {symbol.ToUpperInvariant()} executed successfully.";
-
-                return new OkObjectResult(responseMessage);
+                log.LogError(exception: exception, exception.Message);
+                result = new ObjectResult(500);
             }
+
+            return  result;
         }
     }
 }
