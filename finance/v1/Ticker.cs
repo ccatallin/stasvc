@@ -18,56 +18,98 @@ namespace FalxGroup.Finance.v1
 
         [FunctionName("Ticker")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post",  Route = "finance/v1/ticker/{symbol:alpha?}/{market:alpha?}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/ticker/{symbol:alpha?}/{market:alpha?}")] HttpRequest req,
+            ExecutionContext executionContext,
             ILogger log,
             string symbol,
             string market)
         {
-            ObjectResult result = null;
+
+            StringBuilder responseBuilder = new StringBuilder();
+
+            var upperSymbol = string.Empty;
+            string symbolPrice = string.Empty;
+            
+            var startIndex = -1;
+            var endIndex  = -1;
+
+            int statusCode = 200;
+            string statusMessage = string.Empty;
+            var result = new OkObjectResult(string.Empty);
 
             try 
             {
                 if (string.IsNullOrEmpty(symbol))
                 {
-                    result = new BadRequestObjectResult($"This HTTP {req.Method} triggered. Function executed successfully and said no symbol was provided.");
+                    statusCode = 204;
+                    statusMessage = $"HTTP {req.Method} {executionContext.FunctionName} version 1.0.1";
                 }
                 else
                 {
                     string bodyResponse = string.Empty;
-                    StringBuilder responseBuilder = new StringBuilder();
-                    var upperSymbol = symbol.ToUpperInvariant();
+                    upperSymbol = symbol.ToUpperInvariant();
 
                     if (string.IsNullOrEmpty(market))
                     {
-
                         bodyResponse = await yahooFinanceHttpQuery.GetStringAsync($"{upperSymbol}");
 
-                        var startIndex = bodyResponse.IndexOf($"data-symbol=\"{upperSymbol}\"");
-                        var endIndex = bodyResponse.IndexOf("</fin-streamer>", startIndex);
-                        startIndex = bodyResponse.IndexOf(">", startIndex) + 1;
+                        startIndex = bodyResponse.IndexOf($"data-symbol=\"{upperSymbol}\"");
 
-                        responseBuilder.Append("{\"").Append(upperSymbol).Append("\":")
-                            .Append(bodyResponse.Substring(startIndex, endIndex - startIndex)).Append("}");
+                        if (-1 == startIndex)
+                        {
+                            statusCode = 404;
+                            statusMessage = $"{upperSymbol} informations not found";
+                        }
+                        else
+                        {
+                            endIndex = bodyResponse.IndexOf("</fin-streamer>", startIndex);
+                            startIndex = bodyResponse.IndexOf(">", startIndex) + 1;
+
+                            symbolPrice = bodyResponse.Substring(startIndex, endIndex - startIndex);
+
+                            if ((string.IsNullOrEmpty(symbolPrice)) || (0 == symbolPrice.Length))
+                            {
+                                statusCode = 406;
+                                statusMessage = $"{upperSymbol} informations not valid";
+                            }
+                        }
                     }
                     else
                     {
-                        bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{upperSymbol}:{market.ToUpperInvariant()}");
-                    }
+                        var upperMarket = market.ToUpperInvariant();
 
-                    // string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                    // dynamic data = JsonConvert.DeserializeObject(requestBody);
-                    // name = name ?? data?.name;
-
-                    result = new OkObjectResult(responseBuilder.ToString());
+                        bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{upperSymbol}:{upperMarket}");
+                    }                    
                 }
             }
             catch (Exception exception) 
             {
                 log.LogError(exception: exception, exception.Message);
-                result = new ObjectResult(500);
+
+                statusCode = 500;
+                statusMessage = exception.Message;
+            }
+            finally
+            {
+                if (200 == statusCode)
+                {
+                    responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
+                        .Append(", \"Message\": \"\"")
+                        .Append(", \"").Append(upperSymbol).Append("\":").Append(symbolPrice)
+                        .Append("}");
+                }
+                else
+                {
+                    responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
+                        .Append(", \"Message\": \"")
+                        .Append(statusMessage)
+                        .Append("\"}");
+                }
+                
+                result.Value = responseBuilder.ToString();
             }
 
-            return  result;
+            return result; // always OK status and inside we pass the correct application error code
         }
     }
 }
