@@ -120,21 +120,6 @@ namespace FalxGroup.Finance.v1
                 }
 
                 responseBuilder.Append("}");
-
-                // if (200 == statusCode)
-                // {
-                //     responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
-                //         .Append(", \"Message\": \"\"")
-                //         .Append(", \"").Append(upperSymbol).Append("\":").Append(symbolValue)
-                //         .Append("}");
-                // }
-                // else
-                // {
-                //     responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
-                //         .Append(", \"Message\": \"")
-                //         .Append(statusMessage)
-                //         .Append("\"}");
-                // }
                 
                 result.Value = responseBuilder.ToString();
             }
