@@ -13,8 +13,8 @@ namespace FalxGroup.Finance.v1
 {
     public static class Ticker
     {
-        private static cc.net.HttpQuery googleFinanceHttpQuery = new cc.net.HttpQuery("https://www.google.com/finance/quote/");
         private static cc.net.HttpQuery yahooFinanceHttpQuery = new cc.net.HttpQuery("https://finance.yahoo.com/quote/");
+        private static cc.net.HttpQuery googleFinanceHttpQuery = new cc.net.HttpQuery("https://www.google.com/finance/quote/");
 
         [FunctionName("Ticker")]
         public static async Task<IActionResult> Run(
@@ -28,7 +28,7 @@ namespace FalxGroup.Finance.v1
             StringBuilder responseBuilder = new StringBuilder();
 
             var upperSymbol = string.Empty;
-            string symbolPrice = string.Empty;
+            string symbolValue = string.Empty;
             
             var startIndex = -1;
             var endIndex  = -1;
@@ -65,9 +65,9 @@ namespace FalxGroup.Finance.v1
                             endIndex = bodyResponse.IndexOf("</fin-streamer>", startIndex);
                             startIndex = bodyResponse.IndexOf(">", startIndex) + 1;
 
-                            symbolPrice = bodyResponse.Substring(startIndex, endIndex - startIndex);
+                            symbolValue = bodyResponse.Substring(startIndex, endIndex - startIndex);
 
-                            if ((string.IsNullOrEmpty(symbolPrice)) || (0 == symbolPrice.Length))
+                            if ((string.IsNullOrEmpty(symbolValue)) || (0 == symbolValue.Length))
                             {
                                 statusCode = 406;
                                 statusMessage = $"{upperSymbol} informations not valid";
@@ -78,7 +78,26 @@ namespace FalxGroup.Finance.v1
                     {
                         var upperMarket = market.ToUpperInvariant();
 
-                        bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{upperSymbol}:{upperMarket}");
+                        bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{upperSymbol}%3A{upperMarket}");
+
+                        startIndex = bodyResponse.IndexOf($"data-last-price=");
+
+                        if (-1 == startIndex)
+                        {
+                            statusCode = 404;
+                            statusMessage = $"{upperSymbol}:{upperMarket} informations not found";
+                        }
+                        else
+                        {
+                            endIndex = bodyResponse.IndexOf(" data-last-normal-market-timestamp=", startIndex) - 1;
+                            symbolValue = bodyResponse.Substring(startIndex + 17, endIndex - (startIndex + 17));
+
+                            if ((string.IsNullOrEmpty(symbolValue)) || (0 == symbolValue.Length))
+                            {
+                                statusCode = 406;
+                                statusMessage = $"{upperSymbol}:{upperMarket} informations not valid";
+                            }
+                        }
                     }                    
                 }
             }
@@ -91,20 +110,31 @@ namespace FalxGroup.Finance.v1
             }
             finally
             {
+                responseBuilder.Append("{")
+                    .Append("\"StatusCode\":").Append($"{statusCode}")
+                    .Append(", \"Message\": \"").Append(statusMessage).Append("\"");
+
                 if (200 == statusCode)
                 {
-                    responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
-                        .Append(", \"Message\": \"\"")
-                        .Append(", \"").Append(upperSymbol).Append("\":").Append(symbolPrice)
-                        .Append("}");
+                    responseBuilder.Append(", \"").Append(upperSymbol).Append("\":").Append(symbolValue);
                 }
-                else
-                {
-                    responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
-                        .Append(", \"Message\": \"")
-                        .Append(statusMessage)
-                        .Append("\"}");
-                }
+
+                responseBuilder.Append("}");
+
+                // if (200 == statusCode)
+                // {
+                //     responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
+                //         .Append(", \"Message\": \"\"")
+                //         .Append(", \"").Append(upperSymbol).Append("\":").Append(symbolValue)
+                //         .Append("}");
+                // }
+                // else
+                // {
+                //     responseBuilder.Append("{\"StatusCode\":").Append(statusCode.ToString())
+                //         .Append(", \"Message\": \"")
+                //         .Append(statusMessage)
+                //         .Append("\"}");
+                // }
                 
                 result.Value = responseBuilder.ToString();
             }

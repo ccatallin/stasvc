@@ -9,12 +9,30 @@ public class HttpQuery
 {
 	private HttpClient httpClient = null;
 
+    public HttpQuery()
+    {
+        this.httpClient = new HttpClient();
+    }
+
     public HttpQuery(string uriBaseAddress)
     {
         this.httpClient = new()
         {
             BaseAddress = new Uri(uriBaseAddress),
         };
+    }
+
+    public string BaseAddress 
+    { 
+        get
+        {
+            return this.httpClient.BaseAddress?.ToString();
+        }
+
+        set 
+        {
+            this.httpClient.BaseAddress = new Uri(value.Trim());
+        }
     }
 
 	public async Task<string> GetAsync(string queryString)
