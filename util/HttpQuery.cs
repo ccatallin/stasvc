@@ -47,6 +47,6 @@ public class HttpQuery
         return await this.httpClient.GetStringAsync($"{queryString.Trim()}");
     }
 
-}       /* end class HttpQuery */
+} /* end class HttpQuery */
 
-}       /* end cc.net namespace */
+} /* end cc.net namespace */
