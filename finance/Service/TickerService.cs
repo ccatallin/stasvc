@@ -56,7 +56,7 @@ public class TickerService
 
                 if ((null == queryResponse) || (string.IsNullOrEmpty(queryResponse.Value)))
                 {
-                    // data not in cache or data to old
+                    // data not in cache or data too old
                     if (string.IsNullOrEmpty(market))
                     {
                         queryResponse = await this.QueryYahooFinance(upperSymbol, symbolInCache);

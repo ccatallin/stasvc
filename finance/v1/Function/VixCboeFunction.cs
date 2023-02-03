@@ -17,7 +17,6 @@ namespace FalxGroup.Finance.Function
     {
         private static string version = "1.0.0";
         private static TickerService processor = new TickerService(10);       
-        private static cc.net.HttpQuery googleFinanceHttpQuery = new cc.net.HttpQuery("https://www.google.com/finance/quote/");
 
         [FunctionName("VIX")]
         public static async Task<IActionResult> Run(
