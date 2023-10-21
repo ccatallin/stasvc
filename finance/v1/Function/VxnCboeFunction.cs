@@ -13,18 +13,18 @@ using FalxGroup.Finance.Service;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class VixCboeFunction
+    public static class VxnCboeFunction
     {
         private static string version = "1.0.0";
         private static TickerService processor = new TickerService(10);       
 
-        [FunctionName("VIX")]
+        [FunctionName("VXN")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/vix")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/vxn")] HttpRequest req,
             ExecutionContext executionContext,
             ILogger log)
         {
-            var response = await VixCboeFunction.processor.Run(log, executionContext.FunctionName, version, "VIX", "INDEXCBOE");
+            var response = await VxnCboeFunction.processor.Run(log, executionContext.FunctionName, version, "VXN", "INDEXCBOE");
             
             StringBuilder responseBuilder = new StringBuilder("");
 
