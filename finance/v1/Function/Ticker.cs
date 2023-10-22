@@ -12,7 +12,7 @@ using FalxGroup.Finance.Service;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class TickerFunction
+    public static class Ticker
     {
         private static string version = "1.0.3";
         private static TickerService processor = new TickerService(10);
@@ -25,7 +25,7 @@ namespace FalxGroup.Finance.Function
             string symbol,
             string market)
         {
-            var response = await TickerFunction.processor.Run(log, executionContext.FunctionName, version, symbol, market);
+            var response = await Ticker.processor.Run(log, executionContext.FunctionName, version, symbol, market);
 
             StringBuilder responseBuilder = new StringBuilder();
 
