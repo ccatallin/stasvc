@@ -10,18 +10,21 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 // --
 using FalxGroup.Finance.Service;
+using System.Linq;
 
 namespace FalxGroup.Finance.Function
 {
     public static class CboeVolatility
     {
-        private const string market = "INDEXCBOE";
         private static string version = "1.0.0";
-        private static TickerService processor = new TickerService(10);
 
+        private const string cboeIndexesMarketTicker = "INDEXCBOE";
         /*
-            This function is used to return the information for VVIX, VIX, VXN, VXD, RVX, MOVE, GVZ and OVX
+            This function is used to apply the rule of 16 for the following CBOE indexes VIX, VVIX, VXN, VXD, RVX, MOVE, GVZ and OVX
          */
+        private static readonly string[] cboeIndexes = { "VIX", "VVIX", "VXN", "VXD", "RVX", "GVZ", "OVX" };
+
+        private static TickerService processor = new TickerService(10);
 
         [FunctionName("CboeVolatility")]
         public static async Task<IActionResult> Run(
@@ -34,9 +37,12 @@ namespace FalxGroup.Finance.Function
 
             try
             {
+                var indexSymbol = (string.IsNullOrEmpty(symbol) ? "VIX" : symbol.ToUpper());
+
                 var response = await CboeVolatility.processor.Run(log, 
                     executionContext.FunctionName, version, 
-                    (string.IsNullOrEmpty(symbol) ? "VIX" : symbol.ToUpper()), market);
+                    (cboeIndexes.Any(validSymbol => validSymbol == indexSymbol) ? indexSymbol : "VIX"), 
+                    cboeIndexesMarketTicker);
 
                 responseBuilder.Append("{")
                     .Append("\"StatusCode\":").Append($"{response.StatusCode}")
