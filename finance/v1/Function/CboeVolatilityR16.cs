@@ -14,7 +14,7 @@ using System.Linq;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class CboeVolatility
+    public static class CboeVolatilityR16
     {
         private static string version = "1.0.0";
 
@@ -28,7 +28,7 @@ namespace FalxGroup.Finance.Function
 
         [FunctionName("CboeVolatility")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/cboe_volatility/{symbol:alpha?}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/cboe_volatility_r16/{symbol:alpha?}")] HttpRequest req,
             ExecutionContext executionContext,
             ILogger log, 
             string symbol)
@@ -39,7 +39,7 @@ namespace FalxGroup.Finance.Function
             {
                 var indexSymbol = (string.IsNullOrEmpty(symbol) ? "VIX" : symbol.ToUpper());
 
-                var response = await CboeVolatility.processor.Run(log, 
+                var response = await CboeVolatilityR16.processor.Run(log, 
                     executionContext.FunctionName, version, 
                     (cboeIndexes.Any(validSymbol => validSymbol == indexSymbol) ? indexSymbol : "VIX"), 
                     cboeIndexesMarketTicker);
