@@ -26,7 +26,7 @@ namespace FalxGroup.Finance.Function
 
         private static TickerService processor = new TickerService(10);
 
-        [FunctionName("CboeVolatility")]
+        [FunctionName("CboeVolatilityR16")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/cboe_volatility_r16/{symbol:alpha?}")] HttpRequest req,
             ExecutionContext executionContext,
