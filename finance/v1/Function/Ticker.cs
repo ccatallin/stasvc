@@ -14,8 +14,8 @@ namespace FalxGroup.Finance.Function
 {
     public static class Ticker
     {
-        private static string version = "1.0.3";
-        private static TickerService processor = new TickerService(10);
+        private static string version = "1.0.4";
+        private static TickerService processor = new TickerService(5);
 
         [FunctionName("Ticker")]
         public static async Task<IActionResult> Run(

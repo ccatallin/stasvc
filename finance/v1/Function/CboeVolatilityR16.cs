@@ -16,7 +16,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class CboeVolatilityR16
     {
-        private static string version = "1.0.0";
+        private static string version = "1.0.1";
 
         private const string cboeIndexesMarketTicker = "INDEXCBOE";
         /*
@@ -24,7 +24,7 @@ namespace FalxGroup.Finance.Function
          */
         private static readonly string[] cboeIndexes = { "VIX", "VVIX", "VXN", "VXD", "RVX", "GVZ", "OVX" };
 
-        private static TickerService processor = new TickerService(10);
+        private static TickerService processor = new TickerService(5);
 
         [FunctionName("CboeVolatilityR16")]
         public static async Task<IActionResult> Run(
