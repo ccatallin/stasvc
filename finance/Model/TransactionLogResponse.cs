@@ -3,6 +3,7 @@ namespace FalxGroup.Finance.Model
 
 public class TransactionLogResponse
 {
+
     public TransactionLogResponse()
     {
 

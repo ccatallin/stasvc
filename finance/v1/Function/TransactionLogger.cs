@@ -9,6 +9,7 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 // --
 using FalxGroup.Finance.Service;
+using FalxGroup.Finance.Model;
 
 namespace FalxGroup.Finance.Function
 {
@@ -19,13 +20,14 @@ namespace FalxGroup.Finance.Function
 
         [FunctionName("TransactionLogger")]
         public static async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", 
-            Route = "finance/v1/transaction-logger/{beginDate:alpha?}/{endDate:alpha?}")] HttpRequest req,
+            Route = "finance/v1/transaction_logger/{beginDate:alpha?}/{endDate:alpha?}")] HttpRequest req,
             ExecutionContext executionContext,
             ILogger log,
             string symbol,
             string market)
         {
-            var response = await TransactionLogger.processor.Run(log, executionContext.FunctionName, version);
+            TransactionLog transactionRecord = new TransactionLog();
+            var response = await TransactionLoggerService.Run(log, executionContext.FunctionName, version, transactionRecord);
 
             StringBuilder responseBuilder = new StringBuilder();
 

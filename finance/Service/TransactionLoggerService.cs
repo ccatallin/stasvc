@@ -17,7 +17,7 @@ public class TransactionLoggerService
 
     }
 
-    public async Task<TransactionLogResponse> Run(ILogger log, string functionName, string version)
+    public static async Task<TransactionLogResponse> Run(ILogger log, string functionName, string version, TransactionLog transactionRecord)
     {
         TransactionLogResponse reponse = null;
         return reponse;
