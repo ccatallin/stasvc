@@ -78,45 +78,45 @@ public class TickerService
         return queryResponse;
     }
 
-        private async Task<QueryResponse> QueryGoogleFinance(string symbol, string market, bool symbolInCache)
+    private async Task<QueryResponse> QueryGoogleFinance(string symbol, string market, bool symbolInCache)
+    {
+        QueryResponse response = new QueryResponse(200, message: string.Empty, symbol: symbol, market: market);
+
+        string bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{symbol}%3A{market}");
+
+        int startIndex = bodyResponse.IndexOf($"data-last-price=");
+
+        if (-1 == startIndex)
         {
-            QueryResponse response = new QueryResponse(200, message: string.Empty, symbol: symbol, market: market);
+            response.StatusCode = 404;
+            response.Message = $"{symbol}:{market} informations not found";
+        }
+        else
+        {
+            int endIndex = bodyResponse.IndexOf(" data-last-normal-market-timestamp=", startIndex) - 1;
+            response.Value = bodyResponse.Substring(startIndex + 17, endIndex - (startIndex + 17));
 
-            string bodyResponse = await googleFinanceHttpQuery.GetStringAsync($"{symbol}%3A{market}");
-
-            int startIndex = bodyResponse.IndexOf($"data-last-price=");
-
-            if (-1 == startIndex)
+            if ((string.IsNullOrEmpty(symbol)) || (0 == symbol.Length))
             {
-                response.StatusCode = 404;
-                response.Message = $"{symbol}:{market} informations not found";
+                response.StatusCode = 406;
+                response.Message = $"{symbol}:{market} informations not valid";
             }
             else
             {
-                int endIndex = bodyResponse.IndexOf(" data-last-normal-market-timestamp=", startIndex) - 1;
-                response.Value = bodyResponse.Substring(startIndex + 17, endIndex - (startIndex + 17));
-
-                if ((string.IsNullOrEmpty(symbol)) || (0 == symbol.Length))
+                if (!symbolInCache)
                 {
-                    response.StatusCode = 406;
-                    response.Message = $"{symbol}:{market} informations not valid";
+                    // symbol info does not exists, it's  first
+                    this.symbolsCache.Add(symbol, response.Value);
                 }
                 else
-                {
-                    if (!symbolInCache)
-                    {
-                        // symbol info does not exists, it's  first
-                        this.symbolsCache.Add(symbol, response.Value);
-                    }
-                    else
-                    {   // symbol info exists but it's expired
-                        this.symbolsCache.Update(symbol, response.Value);
-                    }
+                {   // symbol info exists but it's expired
+                    this.symbolsCache.Update(symbol, response.Value);
                 }
             }
-
-            return response;
         }
+
+        return response;
+    }
 
     private async Task<QueryResponse> QueryYahooFinance(string symbol, bool symbolInCache)
     {
