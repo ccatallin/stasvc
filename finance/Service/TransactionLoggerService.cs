@@ -16,33 +16,40 @@ public class TransactionLoggerService
         this.ConnectionString = connectionString;
     }
 
-    public async Task<int> LogTransaction(TransactionLog record)
+    public async Task<Tuple<int, string>> LogTransaction(TransactionLog record)
     {
         if (!record.IsEmpty)
         {
             using (SqlConnection connection = new SqlConnection(this.ConnectionString))
             {
                 connection.Open();
-                var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @CreatedById, @ClientId";
+                var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @CreatedById, @ClientId, @TransactionId OUTPUT";
 
                 using (SqlCommand command = new SqlCommand(sqlQuery, connection))
                 {
                     command.Parameters.AddWithValue("@TransactionDate", record.TransactionDate);
                     command.Parameters.AddWithValue("@TransactionType", record.TransactionType);
-                    command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim()); // .Replace("'", "\'"));
+                    command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
                     command.Parameters.AddWithValue("@ProductTypeId", record.ProductType);
                     command.Parameters.AddWithValue("@NoContracts", record.NoContracts);
                     command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
+                    command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
                     command.Parameters.AddWithValue("@CreatedById", record.CreatedById);
                     command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-                    return await command.ExecuteNonQueryAsync();
+                    command.Parameters.Add("@TransactionId", System.Data.SqlDbType.VarChar, 100);
+                    command.Parameters["@TransactionId"].Direction = System.Data.ParameterDirection.Output;
+
+                    var result = await command.ExecuteNonQueryAsync();
+                    var transactionId =  Convert.ToString(command.Parameters["@TransactionId"].Value);
+
+                    return new Tuple<int, string>(result, transactionId);
                 }
             }
         }
         else
         {
-            return -1;
+            return new Tuple<int, string>(-1, null);
         }
     }
 

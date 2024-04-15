@@ -14,19 +14,21 @@ public class TransactionLog
     }
 
     public TransactionLog(int transactionType, int productType, string productName, int noContracts, 
-        double contractPrice, DateTime transactionDate, long createdById, long clientId, 
-        long userAccountId /* not used yet */, string notes /* not used yet */)
+        double contractPrice, double transactionFees, DateTime transactionDate, long createdById, long clientId, 
+        long userAccountId /* not used yet */, string notes /* not used yet */, string applicationKey)
     {
         this.TransactionType = transactionType;
         this.ProductType = productType;
         this.ProductName = productName;
         this.NoContracts = noContracts;
         this.ContractPrice = contractPrice;
+        this.TransactionFees = transactionFees;
         this.TransactionDate = transactionDate;
         this.CreatedById = createdById;
         this.ClientId = clientId;
         this.UserAccountId = userAccountId;
         this.Notes = notes;
+        this.ApplicationKey = applicationKey;
     }
 
     [DataMember(Name = "transaction_type")]
@@ -44,6 +46,9 @@ public class TransactionLog
     [DataMember(Name = "product_price")]
     public double ContractPrice { get; set; }
 
+    [DataMember(Name = "transaction_fees")]
+    public double TransactionFees { get; set; }
+
     [DataMember(Name = "transaction_date")]
     public DateTime TransactionDate { get; set; }
 
@@ -58,6 +63,9 @@ public class TransactionLog
 
     [DataMember(Name = "notes")]
     public string Notes { get; set; }
+
+    [DataMember(Name = "application_key")]
+    public string ApplicationKey { get; set; }
 
     public bool IsEmpty => (((0 == this.ProductName.Trim().Length) || (0 == this.NoContracts) || (0 == this.ContractPrice)) ? true : false);
 
