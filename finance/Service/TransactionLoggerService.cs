@@ -34,7 +34,7 @@ public class TransactionLoggerService
                     command.Parameters.AddWithValue("@NoContracts", record.NoContracts);
                     command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
                     command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
-                    command.Parameters.AddWithValue("@CreatedById", record.CreatedById);
+                    command.Parameters.AddWithValue("@CreatedById", record.UserId);
                     command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
                     command.Parameters.Add("@TransactionId", System.Data.SqlDbType.VarChar, 100);
@@ -50,6 +50,27 @@ public class TransactionLoggerService
         else
         {
             return new Tuple<int, string>(-1, null);
+        }
+    }
+
+    public async Task<Tuple<int, string>> DeleteTransaction(TransactionLog record)
+    {
+        using (SqlConnection connection = new SqlConnection(this.ConnectionString))
+        {
+            connection.Open();
+
+            var sqlQuery = "EXEC [Klondike].[deleteTransaction] @TransactionId, @ModifiedById, @ClientId";
+
+            using (SqlCommand command = new SqlCommand(sqlQuery, connection))
+            {
+                command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
+                command.Parameters.AddWithValue("@ModifiedById", record.UserId);
+                command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+                var result = await command.ExecuteNonQueryAsync();
+
+                return new Tuple<int, string>(result, record.TransactionId);
+            }
         }
     }
 

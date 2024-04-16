@@ -25,13 +25,13 @@ namespace FalxGroup.Finance.Function
 
         [FunctionName("LogTransaction")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "finance/v1/log_transaction")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "delete", Route = "finance/v1/log_transaction")] HttpRequest req,
             ExecutionContext executionContext,
             ILogger log)
         {
             StringBuilder responseBuilder = new StringBuilder();
 
-            if (req.Method.Equals("POST"))
+            if (req.Method.Equals("POST") || req.Method.Equals("DELETE"))
             {
                 try
                 {
@@ -40,7 +40,8 @@ namespace FalxGroup.Finance.Function
                     
                     if (record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
                     {
-                        var response = await TransactionLogger.processor.LogTransaction(record);
+                        var response = req.Method.Equals("POST") ? await TransactionLogger.processor.LogTransaction(record) : 
+                            await TransactionLogger.processor.DeleteTransaction(record);
                         
                         if (1 == response.Item1) 
                         {

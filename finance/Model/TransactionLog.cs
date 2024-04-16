@@ -14,8 +14,8 @@ public class TransactionLog
     }
 
     public TransactionLog(int transactionType, int productType, string productName, int noContracts, 
-        double contractPrice, double transactionFees, DateTime transactionDate, long createdById, long clientId, 
-        long userAccountId /* not used yet */, string notes /* not used yet */, string applicationKey)
+        double contractPrice, double transactionFees, DateTime transactionDate, long userId, long clientId, 
+        long userAccountId, string notes, string transactionId, string applicationKey)
     {
         this.TransactionType = transactionType;
         this.ProductType = productType;
@@ -24,11 +24,12 @@ public class TransactionLog
         this.ContractPrice = contractPrice;
         this.TransactionFees = transactionFees;
         this.TransactionDate = transactionDate;
-        this.CreatedById = createdById;
+        this.UserId = userId;
         this.ClientId = clientId;
         this.UserAccountId = userAccountId;
         this.Notes = notes;
         this.ApplicationKey = applicationKey;
+        this.TransactionId = transactionId;
     }
 
     [DataMember(Name = "transaction_type")]
@@ -53,7 +54,7 @@ public class TransactionLog
     public DateTime TransactionDate { get; set; }
 
     [DataMember(Name = "user_id")]
-    public long CreatedById { get; set; }
+    public long UserId { get; set; }
 
     [DataMember(Name = "client_id")]
     public long ClientId { get; set; }
@@ -63,6 +64,9 @@ public class TransactionLog
 
     [DataMember(Name = "notes")]
     public string Notes { get; set; }
+
+    [DataMember(Name = "transaction_id")]
+    public string TransactionId { get; set; }
 
     [DataMember(Name = "application_key")]
     public string ApplicationKey { get; set; }
