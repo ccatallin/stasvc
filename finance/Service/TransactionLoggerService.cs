@@ -23,7 +23,7 @@ public class TransactionLoggerService
             using (SqlConnection connection = new SqlConnection(this.ConnectionString))
             {
                 connection.Open();
-                var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @CreatedById, @ClientId, @TransactionId OUTPUT";
+                var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @CreatedById, @ClientId, @Notes, @TransactionId OUTPUT";
 
                 using (SqlCommand command = new SqlCommand(sqlQuery, connection))
                 {
@@ -36,6 +36,7 @@ public class TransactionLoggerService
                     command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
                     command.Parameters.AddWithValue("@CreatedById", record.UserId);
                     command.Parameters.AddWithValue("@ClientId", record.ClientId);
+                    command.Parameters.AddWithValue("@Notes", record.Notes);
 
                     command.Parameters.Add("@TransactionId", System.Data.SqlDbType.VarChar, 100);
                     command.Parameters["@TransactionId"].Direction = System.Data.ParameterDirection.Output;
