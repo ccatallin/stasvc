@@ -36,7 +36,7 @@ public class TransactionLoggerService
                     command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
                     command.Parameters.AddWithValue("@CreatedById", record.UserId);
                     command.Parameters.AddWithValue("@ClientId", record.ClientId);
-                    command.Parameters.AddWithValue("@Notes", record.Notes);
+                    command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
 
                     command.Parameters.Add("@TransactionId", System.Data.SqlDbType.VarChar, 100);
                     command.Parameters["@TransactionId"].Direction = System.Data.ParameterDirection.Output;
