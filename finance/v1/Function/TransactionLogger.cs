@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 // using System.Text.Json;
 using System.Threading.Tasks;
+using System.Net.Http;
 // --
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,7 +21,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.1";
+        private static string version = "1.0.2";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -31,7 +32,7 @@ namespace FalxGroup.Finance.Function
         {
             StringBuilder responseBuilder = new StringBuilder();
 
-            if (req.Method.Equals("POST") || req.Method.Equals("DELETE"))
+            if (req.Method.Equals("POST") || req.Method.Equals("PUT") || req.Method.Equals("DELETE") || req.Method.Equals("GET"))
             {
                 try
                 {
@@ -40,9 +41,22 @@ namespace FalxGroup.Finance.Function
                     
                     if (record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
                     {
-                        var response = req.Method.Equals("POST") ? await TransactionLogger.processor.LogTransaction(record) : 
-                            await TransactionLogger.processor.DeleteTransaction(record);
-                        
+                        Tuple<int, string> response = null;
+
+                        switch (req.Method)
+                        {
+                            case "POST":
+                                response = await TransactionLogger.processor.LogTransaction(record);
+                                break;
+                            case "PUT":
+                                break;
+                            case "DELETE":
+                                response = await TransactionLogger.processor.DeleteTransaction(record);
+                                break;
+                            case "GET":
+                                break;
+                        }
+
                         if (1 == response.Item1) 
                         {
                             responseBuilder.Append("{").Append("\"StatusCode\": 200").Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
