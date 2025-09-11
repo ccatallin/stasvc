@@ -21,7 +21,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.2";
+        private static string version = "1.0.3";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -57,13 +57,22 @@ namespace FalxGroup.Finance.Function
                                 break;
                         }
 
-                        if (1 == response.Item1) 
+                        if (null == response)
                         {
-                            responseBuilder.Append("{").Append("\"StatusCode\": 200").Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
-                        } 
+                            responseBuilder.Append("{").Append("\"StatusCode\": 204")
+                                .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} version {version}\"")
+                                .Append("}");
+                        }
                         else
                         {
-                            responseBuilder.Append("{").Append("\"StatusCode\": 500").Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                            if (1 == response.Item1)
+                            {
+                                responseBuilder.Append("{").Append("\"StatusCode\": 200").Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                            }
+                            else
+                            {
+                                responseBuilder.Append("{").Append("\"StatusCode\": 500").Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                            }
                         }
                     }
                     else
