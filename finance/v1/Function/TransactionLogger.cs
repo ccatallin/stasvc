@@ -39,7 +39,7 @@ namespace FalxGroup.Finance.Function
                     var jsonData = await new StreamReader(req.Body).ReadToEndAsync();
                     TransactionLog record = JsonConvert.DeserializeObject<TransactionLog>(jsonData);
 
-                    if (record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
+                    if ((null != record) && record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
                     {
                         switch (req.Method)
                         {
