@@ -21,7 +21,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.3";
+        private static string version = "1.0.4";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -38,48 +38,84 @@ namespace FalxGroup.Finance.Function
                 {
                     var jsonData = await new StreamReader(req.Body).ReadToEndAsync();
                     TransactionLog record = JsonConvert.DeserializeObject<TransactionLog>(jsonData);
-                    
+
                     if (record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
                     {
-                        Tuple<int, string> response = null;
-
                         switch (req.Method)
                         {
                             case "POST":
-                                response = await TransactionLogger.processor.LogTransaction(record);
-                                break;
-                            case "PUT":
-                                break;
-                            case "DELETE":
-                                response = await TransactionLogger.processor.DeleteTransaction(record);
-                                break;
-                            case "GET":
-                                break;
-                        }
+                            {
+                                var response = await TransactionLogger.processor.LogTransaction(record);
 
-                        if (null == response)
-                        {
-                            responseBuilder.Append("{").Append("\"StatusCode\": 204")
-                                .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} version {version}\"")
-                                .Append("}");
-                        }
-                        else
-                        {
-                            if (1 == response.Item1)
-                            {
-                                responseBuilder.Append("{").Append("\"StatusCode\": 200").Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                if (1 == response.Item1)
+                                {
+                                    responseBuilder.Append("{").Append("\"StatusCode\": 200")
+                                        .Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                }
+                                else
+                                {
+                                    responseBuilder.Append("{").Append("\"StatusCode\": 500")
+                                        .Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                }
+
+                                break;
                             }
-                            else
+                            case "PUT":
                             {
-                                responseBuilder.Append("{").Append("\"StatusCode\": 500").Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                var response = await TransactionLogger.processor.UpdateTransaction(record);
+
+                                if (1 == response.Item1)
+                                {
+                                    responseBuilder.Append("{").Append("\"StatusCode\": 200")
+                                        .Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                }
+                                else
+                                {
+                                    responseBuilder.Append("{").Append("\"StatusCode\": 500")
+                                        .Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                }
+
+                                break;
                             }
-                        }
-                    }
+                            case "DELETE":
+                            {
+                                var response = await TransactionLogger.processor.DeleteTransaction(record);
+
+                                if (1 == response.Item1)
+                                {
+                                    responseBuilder.Append("{").Append("\"StatusCode\": 200")
+                                        .Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                }
+                                else
+                                {
+                                    responseBuilder.Append("{").Append("\"StatusCode\": 500")
+                                        .Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                }
+
+                                break;
+                            }
+                            case "GET":
+                            {
+                                responseBuilder.Append("{").Append("\"StatusCode\": 204")
+                                    .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} GET version {version}\"")
+                                    .Append("}");
+                                break;
+                            }
+                            default:
+                            {
+                                responseBuilder.Append("{").Append("\"StatusCode\": 405")
+                                    .Append($", \"Message\": \"Method Not Allowed\"").Append("}");
+                                log.LogError("405 Method Not Allowed");
+                                break;
+                            }
+                        } // end switch
+                    } 
                     else
-                    {
-                        responseBuilder.Append("{").Append("\"StatusCode\": 405").Append($", \"Message\": \"Method Not Allowed\"").Append("}");
-                        log.LogError("405 Method Not Allowed");   
-                    }
+                    { 
+                        responseBuilder.Append("{").Append("\"StatusCode\": 204")
+                            .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} version {version}\"")
+                            .Append("}");
+                    } // end valid application key
                 }
                 catch (Exception exception)
                 {
