@@ -21,7 +21,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.6";
+        private static string version = "1.0.8";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -49,13 +49,17 @@ namespace FalxGroup.Finance.Function
 
                                 if (1 == response.Item1)
                                 {
-                                    responseBuilder.Append("{").Append("\"StatusCode\": 200")
-                                        .Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 200")
+                                            .Append($", \"TransactionId\": \"{response.Item2}\"")
+                                        .Append("}");
                                 }
                                 else
                                 {
-                                    responseBuilder.Append("{").Append("\"StatusCode\": 500")
-                                        .Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 500")
+                                            .Append($", \"Message\": METHOD {req.Method.ToString()} \"Records inserted {response.Item1}\"")
+                                        .Append("}");
                                 }
 
                                 break;
@@ -66,13 +70,17 @@ namespace FalxGroup.Finance.Function
 
                                 if (1 == response.Item1)
                                 {
-                                    responseBuilder.Append("{").Append("\"StatusCode\": 200")
-                                        .Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 200")
+                                            .Append($", \"TransactionId\": \"{response.Item2}\"")
+                                        .Append("}");
                                 }
                                 else
                                 {
-                                    responseBuilder.Append("{").Append("\"StatusCode\": 500")
-                                        .Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 500")
+                                            .Append($", \"Message\": METHOD {req.Method.ToString()} \"Records updated {response.Item1}\"")
+                                        .Append("}");
                                 }
 
                                 break;
@@ -83,50 +91,62 @@ namespace FalxGroup.Finance.Function
 
                                 if (1 == response.Item1)
                                 {
-                                    responseBuilder.Append("{").Append("\"StatusCode\": 200")
-                                        .Append($", \"TransactionId\": \"{response.Item2}\"").Append("}");
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 200")
+                                            .Append($", \"TransactionId\": \"{response.Item2}\"")
+                                        .Append("}");
                                 }
                                 else
                                 {
-                                    responseBuilder.Append("{").Append("\"StatusCode\": 500")
-                                        .Append($", \"Message\": \"Records inserted {response.Item1}\"").Append("}");
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 500")
+                                            .Append($", \"Message\": \"Records deleted {response.Item1}\"")
+                                        .Append("}");
                                 }
 
                                 break;
                             }
                             case "GET":
                             {
-                                responseBuilder.Append("{").Append("\"StatusCode\": 204")
-                                    .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} GET version {version}\"")
+                                responseBuilder.Append("{")
+                                        .Append("\"StatusCode\": 204")
+                                        .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
                                     .Append("}");
                                 break;
                             }
                             default:
                             {
-                                responseBuilder.Append("{").Append("\"StatusCode\": 405")
-                                    .Append($", \"Message\": \"Method Not Allowed\"").Append("}");
+                                responseBuilder.Append("{")
+                                        .Append("\"StatusCode\": 405")
+                                        .Append($", \"Message\": METHOD {req.Method.ToString()} \"Method Not Allowed\"")
+                                    .Append("}");
                                 log.LogError("405 Method Not Allowed");
                                 break;
                             }
                         } // end switch
                     } 
                     else
-                    { 
-                        responseBuilder.Append("{").Append("\"StatusCode\": 204")
-                            .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} version {version}\"")
+                    {
+                        responseBuilder.Append("{")
+                                .Append("\"StatusCode\": 204")
+                                .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
                             .Append("}");
                     } // end valid application key
                 }
                 catch (Exception exception)
                 {
-                    responseBuilder.Append("{").Append("\"StatusCode\": 500").Append(", \"Message\": \"").Append(exception.Message).Append("\"}");
+                    responseBuilder.Append("{")
+                            .Append("\"StatusCode\": 500")
+                            .Append(", \"Message\": \"").Append(exception.Message)
+                        .Append("\"}");
                     log.LogError(exception.Message);
                 }
             }
             else
             {
-                responseBuilder.Append("{").Append("\"StatusCode\": 204")
-                    .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} version {version}\"")
+                responseBuilder.Append("{")
+                        .Append("\"StatusCode\": 204")
+                        .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
                     .Append("}");
             }
 
