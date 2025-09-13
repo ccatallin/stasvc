@@ -21,7 +21,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.8";
+        private static string version = "1.0.9";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -137,7 +137,7 @@ namespace FalxGroup.Finance.Function
                 {
                     responseBuilder.Append("{")
                             .Append("\"StatusCode\": 500")
-                            .Append(", \"Message\": \"").Append(exception.Message)
+                            .Append(", \"Message\": \"").Append(" METHOD {req.Method.ToString()} ").Append(exception.Message)
                         .Append("\"}");
                     log.LogError(exception.Message);
                 }
