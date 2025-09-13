@@ -61,7 +61,7 @@ public class TransactionLoggerService
             using (SqlConnection connection = new SqlConnection(this.ConnectionString))
             {
                 connection.Open();
-                var sqlQuery = "EXEC [Klondike].[updateTransaction] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById @Notes";
+                var sqlQuery = "EXEC [Klondike].[updateTransaction] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @Notes";
 
                 using (SqlCommand command = new SqlCommand(sqlQuery, connection))
                 {
