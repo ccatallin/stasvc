@@ -137,7 +137,7 @@ namespace FalxGroup.Finance.Function
                 {
                     responseBuilder.Append("{")
                             .Append("\"StatusCode\": 500")
-                            .Append(", \"Message\": \"").Append(" METHOD {req.Method.ToString()} ").Append(exception.Message)
+                            .Append(", \"Message\": \"").Append($" METHOD {req.Method.ToString()} ").Append(exception.Message)
                         .Append("\"}");
                     log.LogError(exception.Message);
                 }
