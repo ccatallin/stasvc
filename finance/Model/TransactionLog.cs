@@ -71,7 +71,10 @@ public class TransactionLog
     [DataMember(Name = "application_key")]
     public string ApplicationKey { get; set; }
 
-    public bool IsEmpty => (((0 == this.ProductName.Trim().Length) || (0 == this.NoContracts) || (0 == this.ContractPrice)) ? true : false);
+    [DataMember(Name = "get_process_type")]
+    public int GetProcessType { get; set; }
+
+    public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductName) || (0 == this.NoContracts) || (0 == this.ContractPrice);
 
 } /* end class TransactionLog */
 

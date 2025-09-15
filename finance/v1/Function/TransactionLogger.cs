@@ -16,6 +16,7 @@ using Newtonsoft.Json;
 // --
 using FalxGroup.Finance.Service;
 using FalxGroup.Finance.Model;
+using Microsoft.IdentityModel.Tokens;
 
 namespace FalxGroup.Finance.Function
 {
@@ -49,8 +50,9 @@ namespace FalxGroup.Finance.Function
 
                                 if (1 == response.Item1)
                                 {
+                                    // 201 is a classic response for a successful creation of a resource
                                     responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 200")
+                                            .Append("\"StatusCode\": 201")
                                             .Append($", \"TransactionId\": \"{response.Item2}\"")
                                         .Append("}");
                                 }
@@ -70,6 +72,7 @@ namespace FalxGroup.Finance.Function
 
                                 if (1 == response.Item1)
                                 {
+                                    // a 204 could be returned if no content is returned but we do return the updated transaction's id
                                     responseBuilder.Append("{")
                                             .Append("\"StatusCode\": 200")
                                             .Append($", \"TransactionId\": \"{response.Item2}\"")
@@ -91,6 +94,7 @@ namespace FalxGroup.Finance.Function
 
                                 if (1 == response.Item1)
                                 {
+                                    // a 204 could be returned if no content is returned but we do return the deleted transaction's id
                                     responseBuilder.Append("{")
                                             .Append("\"StatusCode\": 200")
                                             .Append($", \"TransactionId\": \"{response.Item2}\"")
@@ -108,10 +112,32 @@ namespace FalxGroup.Finance.Function
                             }
                             case "GET":
                             {
-                                responseBuilder.Append("{")
-                                        .Append("\"StatusCode\": 204")
-                                        .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
-                                    .Append("}");
+                                if (2 == record.GetProcessType) {
+                                    
+                                    string jsonOpenPositions = null;
+
+                                    jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
+
+                                    if (jsonOpenPositions.IsNullOrEmpty())
+                                    {
+                                        responseBuilder.Append("{").Append("\"StatusCode\": 204").Append("}");
+                                    }
+                                    else
+                                    {
+                                        responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 200")
+                                            .Append(", \"OpenPositions\": ").Append(jsonOpenPositions)
+                                        .Append("}");
+                                    }
+                                }
+                                else
+                                {
+                                    responseBuilder.Append("{")
+                                            .Append("\"StatusCode\": 204")
+                                            .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
+                                        .Append("}");
+                                }   
+
                                 break;
                             }
                             default:

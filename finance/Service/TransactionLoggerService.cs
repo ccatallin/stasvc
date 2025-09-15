@@ -18,14 +18,17 @@ public class TransactionLoggerService
 
     public async Task<Tuple<int, string>> LogTransaction(TransactionLog record)
     {
-        if (!record.IsEmpty)
+        if (record == null || record.IsEmpty)
         {
-            using (SqlConnection connection = new SqlConnection(this.ConnectionString))
-            {
-                connection.Open();
-                var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @CreatedById, @ClientId, @Notes, @TransactionId OUTPUT";
+            return new Tuple<int, string>(-1, null);
+        }
 
-                using (SqlCommand command = new SqlCommand(sqlQuery, connection))
+        using (var connection = new SqlConnection(this.ConnectionString))
+        {
+            await connection.OpenAsync();
+            var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @CreatedById, @ClientId, @Notes, @TransactionId OUTPUT";
+
+            using (var command = new SqlCommand(sqlQuery, connection))
                 {
                     command.Parameters.AddWithValue("@TransactionDate", record.TransactionDate);
                     command.Parameters.AddWithValue("@TransactionType", record.TransactionType);
@@ -46,66 +49,107 @@ public class TransactionLoggerService
 
                     return new Tuple<int, string>(result, transactionId);
                 }
-            }
-        }
-        else
-        {
-            return new Tuple<int, string>(-1, null);
         }
     }
 
     public async Task<Tuple<int, string>> UpdateTransaction(TransactionLog record)
     {
-        if (!record.IsEmpty)
-        {
-            using (SqlConnection connection = new SqlConnection(this.ConnectionString))
-            {
-                connection.Open();
-                var sqlQuery = "EXEC [Klondike].[updateTransaction] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @Notes";
-
-                using (SqlCommand command = new SqlCommand(sqlQuery, connection))
-                {
-                    command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
-                    command.Parameters.AddWithValue("@TransactionDate", record.TransactionDate);
-                    command.Parameters.AddWithValue("@TransactionType", record.TransactionType);
-                    command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
-                    command.Parameters.AddWithValue("@ProductTypeId", record.ProductType);
-                    command.Parameters.AddWithValue("@NoContracts", record.NoContracts);
-                    command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
-                    command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
-                    command.Parameters.AddWithValue("@ModifiedById", record.UserId);
-                    command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
-
-                    var result = await command.ExecuteNonQueryAsync();
-                    var transactionId = record.TransactionId;
-
-                    return new Tuple<int, string>(result, transactionId);
-                }
-            }
-        }
-        else
+        if (record == null || record.IsEmpty || string.IsNullOrWhiteSpace(record.TransactionId))
         {
             return new Tuple<int, string>(-1, null);
+        }
+
+        using (var connection = new SqlConnection(this.ConnectionString))
+        {
+            await connection.OpenAsync();
+            var sqlQuery = "EXEC [Klondike].[updateTransaction] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @Notes";
+
+            using (var command = new SqlCommand(sqlQuery, connection))
+            {
+                command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
+                command.Parameters.AddWithValue("@TransactionDate", record.TransactionDate);
+                command.Parameters.AddWithValue("@TransactionType", record.TransactionType);
+                command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
+                command.Parameters.AddWithValue("@ProductTypeId", record.ProductType);
+                command.Parameters.AddWithValue("@NoContracts", record.NoContracts);
+                command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
+                command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
+                command.Parameters.AddWithValue("@ModifiedById", record.UserId);
+                command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
+
+                var result = await command.ExecuteNonQueryAsync();
+                var transactionId = record.TransactionId;
+
+                return new Tuple<int, string>(result, transactionId);
+            }
         }
     }
 
     public async Task<Tuple<int, string>> DeleteTransaction(TransactionLog record)
     {
-        using (SqlConnection connection = new SqlConnection(this.ConnectionString))
+        if (string.IsNullOrWhiteSpace(record?.TransactionId))
         {
-            connection.Open();
+            return new Tuple<int, string>(-1, null);
+        }
+
+        using (var connection = new SqlConnection(this.ConnectionString))
+        {
+            await connection.OpenAsync();
 
             var sqlQuery = "EXEC [Klondike].[deleteTransaction] @TransactionId, @ModifiedById, @ClientId";
 
-            using (SqlCommand command = new SqlCommand(sqlQuery, connection))
+            using (var command = new SqlCommand(sqlQuery, connection))
             {
                 command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
                 command.Parameters.AddWithValue("@ModifiedById", record.UserId);
                 command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
                 var result = await command.ExecuteNonQueryAsync();
-
                 return new Tuple<int, string>(result, record.TransactionId);
+            }
+        }
+    }
+
+    public async Task<string> GetOpenPositions(TransactionLog record)
+    {
+        using (SqlConnection connection = new SqlConnection(this.ConnectionString))
+        {
+            await connection.OpenAsync();
+
+            var sqlQuery = "EXEC [Klondike].[getOpenPositions] @ClientId";
+
+            using (SqlCommand command = new SqlCommand(sqlQuery, connection))
+            {
+                command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    if (!reader.HasRows)
+                    {
+                        return "[]";
+                    }
+
+                    var jsonBuilder = new StringBuilder();
+                    jsonBuilder.Append("[");
+
+                    var columns = new string[reader.FieldCount];
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        columns[i] = reader.GetName(i);
+                    }
+
+                    while (await reader.ReadAsync())
+                    {
+                        jsonBuilder.Append("{");
+                        for (int i = 0; i < reader.FieldCount; i++)
+                        {
+                            jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
+                        }
+                        jsonBuilder.Append("},");
+                    }
+                    
+                    return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
+                }
             }
         }
     }
