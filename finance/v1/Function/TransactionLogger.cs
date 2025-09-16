@@ -22,7 +22,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.15";
+        private static string version = "1.0.17";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -31,152 +31,140 @@ namespace FalxGroup.Finance.Function
             ExecutionContext executionContext,
             ILogger log)
         {
-            StringBuilder responseBuilder = new StringBuilder();
+            string responseMessage = "";
+            int statusCode = 500;
 
-            if (req.Method.Equals("POST") || req.Method.Equals("PUT") || req.Method.Equals("DELETE") || req.Method.Equals("GET"))
+            try
             {
-                try
+                TransactionLog record = null;
+
+                if (req.Method.Equals("GET"))
+                {
+                    if (0 != req.Query.Count)
+                    {
+                        record = new TransactionLog
+                        {
+                            ApplicationKey = req.Query["application_key"],
+                            ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
+                            UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
+                            UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
+                            GetProcessType = int.TryParse(req.Query["get_process_type"], out var processType) ? processType : 0
+                        };
+                    }
+                }
+                else if (req.Method.Equals("POST") || req.Method.Equals("PUT") || req.Method.Equals("DELETE"))
                 {
                     var jsonData = await new StreamReader(req.Body).ReadToEndAsync();
-                    TransactionLog record = JsonConvert.DeserializeObject<TransactionLog>(jsonData);
+                    record = JsonConvert.DeserializeObject<TransactionLog>(jsonData);
+                }
+                else
+                {
+                    statusCode = 405;
+                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} NOT ALLOWED" });
+                    return new ObjectResult(responseMessage) { StatusCode = statusCode };
+                }
 
-                    if ((null != record) && record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
+                if ((null != record) && record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
+                {
+                    switch (req.Method)
                     {
-                        switch (req.Method)
+                        case "POST":
                         {
-                            case "POST":
-                            {
-                                var response = await TransactionLogger.processor.LogTransaction(record);
+                            var response = await TransactionLogger.processor.LogTransaction(record);
 
-                                if (1 == response.Item1)
+                            if (1 == response.Item1)
+                            {
+                                statusCode = 201; // Created
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, TransactionId = response.Item2 });
+                            }
+                            else
+                            {
+                                statusCode = 500;
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records inserted {response.Item1}" });
+                            }
+                            break;
+                        }
+                        case "PUT":
+                        {
+                            var response = await TransactionLogger.processor.UpdateTransaction(record);
+                            if (1 == response.Item1)
+                            {
+                                statusCode = 200; // OK
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, TransactionId = response.Item2 });
+                            }
+                            else
+                            {
+                                statusCode = 500;
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records updated {response.Item1}" });
+                            }
+                            break;
+                        }
+                        case "DELETE":
+                        {
+                            var response = await TransactionLogger.processor.DeleteTransaction(record);
+                            if (1 == response.Item1)
+                            {
+                                statusCode = 200; // OK
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, TransactionId = response.Item2 });
+                            }
+                            else
+                            {
+                                statusCode = 500;
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Records deleted {response.Item1}" });
+                            }
+                            break;
+                        }
+                        case "GET":
+                        {
+                            if (2 == record.GetProcessType)
+                            {
+                                string jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
+                                if (jsonOpenPositions.IsNullOrEmpty() || jsonOpenPositions == "[]")
                                 {
-                                    // 201 is a classic response for a successful creation of a resource
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 201")
-                                            .Append($", \"TransactionId\": \"{response.Item2}\"")
-                                        .Append("}");
+                                    statusCode = 204; // No Content
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                 }
                                 else
                                 {
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 500")
-                                            .Append($", \"Message\": METHOD {req.Method.ToString()} \"Records inserted {response.Item1}\"")
-                                        .Append("}");
+                                    statusCode = 200; // OK
+                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositions\": {jsonOpenPositions}}}";
                                 }
-
-                                break;
                             }
-                            case "PUT":
+                            else
                             {
-                                var response = await TransactionLogger.processor.UpdateTransaction(record);
-
-                                if (1 == response.Item1)
-                                {
-                                    // a 204 could be returned if no content is returned but we do return the updated transaction's id
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 200")
-                                            .Append($", \"TransactionId\": \"{response.Item2}\"")
-                                        .Append("}");
-                                }
-                                else
-                                {
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 500")
-                                            .Append($", \"Message\": METHOD {req.Method.ToString()} \"Records updated {response.Item1}\"")
-                                        .Append("}");
-                                }
-
-                                break;
+                                statusCode = 200; // OK, but different message
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
                             }
-                            case "DELETE":
-                            {
-                                var response = await TransactionLogger.processor.DeleteTransaction(record);
-
-                                if (1 == response.Item1)
-                                {
-                                    // a 204 could be returned if no content is returned but we do return the deleted transaction's id
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 200")
-                                            .Append($", \"TransactionId\": \"{response.Item2}\"")
-                                        .Append("}");
-                                }
-                                else
-                                {
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 500")
-                                            .Append($", \"Message\": \"Records deleted {response.Item1}\"")
-                                        .Append("}");
-                                }
-
-                                break;
-                            }
-                            case "GET":
-                            {
-                                if (2 == record.GetProcessType) {
-                                    
-                                    string jsonOpenPositions = null;
-
-                                    jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
-
-                                    if (jsonOpenPositions.IsNullOrEmpty())
-                                    {
-                                        responseBuilder.Append("{").Append("\"StatusCode\": 204").Append("}");
-                                    }
-                                    else
-                                    {
-                                        responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 200")
-                                            .Append(", \"OpenPositions\": ").Append(jsonOpenPositions)
-                                        .Append("}");
-                                    }
-                                }
-                                else
-                                {
-                                    responseBuilder.Append("{")
-                                            .Append("\"StatusCode\": 204")
-                                            .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
-                                        .Append("}");
-                                }   
-
-                                break;
-                            }
-                            default:
-                            {
-                                responseBuilder.Append("{")
-                                        .Append("\"StatusCode\": 405")
-                                        .Append($", \"Message\": METHOD {req.Method.ToString()} \"Method Not Allowed\"")
-                                    .Append("}");
-                                log.LogError("405 Method Not Allowed");
-                                break;
-                            }
-                        } // end switch
-                    } 
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    if (req.Method.Equals("GET"))
+                    {
+                        statusCode = 200; // OK print version
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version}" });
+                    }
                     else
                     {
-                        responseBuilder.Append("{")
-                                .Append("\"StatusCode\": 204")
-                                .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
-                            .Append("}");
-                    } // end valid application key
-                }
-                catch (Exception exception)
-                {
-                    responseBuilder.Append("{")
-                            .Append("\"StatusCode\": 500")
-                            .Append(", \"Message\": \"").Append($" METHOD {req.Method.ToString()} ").Append(exception.Message)
-                        .Append("\"}");
-                    log.LogError(exception.Message);
+                        statusCode = 401; // Unauthorized
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} INVALID KEY" });
+                    }
                 }
             }
-            else
+            catch (Exception exception)
             {
-                responseBuilder.Append("{")
-                        .Append("\"StatusCode\": 204")
-                        .Append(", \"Message\": \"").Append($"{executionContext.FunctionName} METHOD {req.Method.ToString()} version {version}\"")
-                    .Append("}");
+                statusCode = 500;
+                responseMessage = JsonConvert.SerializeObject(new
+                {
+                    StatusCode = statusCode,
+                    Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} ERROR: {exception.Message}"
+                });
+                log.LogError(exception, exception.Message);
             }
-
-            return new OkObjectResult(responseBuilder.ToString());
+            
+            return new ContentResult { Content = responseMessage, ContentType = "application/json", StatusCode = statusCode };
         }
     }
 }
