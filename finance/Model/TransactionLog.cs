@@ -13,23 +13,24 @@ public class TransactionLog
 
     }
 
-    public TransactionLog(int transactionType, int productType, string productName, int noContracts, 
-        double contractPrice, double transactionFees, DateTime transactionDate, long userId, long clientId, 
-        long userAccountId, string notes, string transactionId, string applicationKey)
-    {
-        this.TransactionType = transactionType;
-        this.ProductType = productType;
-        this.ProductName = productName;
-        this.NoContracts = noContracts;
-        this.ContractPrice = contractPrice;
-        this.TransactionFees = transactionFees;
-        this.TransactionDate = transactionDate;
-        this.UserId = userId;
-        this.ClientId = clientId;
-        this.UserAccountId = userAccountId;
-        this.Notes = notes;
-        this.ApplicationKey = applicationKey;
-        this.TransactionId = transactionId;
+        public TransactionLog(int transactionType, int productType, string productName, int noContracts,
+            double contractPrice, double transactionFees, DateTime transactionDate, long userId, long clientId,
+            long userAccountId, string notes, string transactionId, string applicationKey, int getProcessType = 2)
+        {
+            this.TransactionType = transactionType;
+            this.ProductType = productType;
+            this.ProductName = productName;
+            this.NoContracts = noContracts;
+            this.ContractPrice = contractPrice;
+            this.TransactionFees = transactionFees;
+            this.TransactionDate = transactionDate;
+            this.UserId = userId;
+            this.ClientId = clientId;
+            this.UserAccountId = userAccountId;
+            this.Notes = notes;
+            this.ApplicationKey = applicationKey;
+            this.TransactionId = transactionId;
+            this.GetProcessType = getProcessType;
     }
 
     [DataMember(Name = "transaction_type")]
