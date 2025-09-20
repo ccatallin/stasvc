@@ -75,7 +75,7 @@ public class TransactionLog
     [DataMember(Name = "get_process_type")]
     public int GetProcessType { get; set; }
 
-    public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductName) || (0 == this.NoContracts) || (0 == this.ContractPrice);
+    public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductName) || (0 == this.NoContracts);
 
 } /* end class TransactionLog */
 
