@@ -152,6 +152,8 @@ namespace FalxGroup.Finance.Function
                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} INVALID KEY" });
                     }
                 }
+                
+                statusCode = 200; // because it is an application error not a infra system error
             }
             catch (Exception exception)
             {
