@@ -145,7 +145,7 @@ namespace FalxGroup.Finance.Function
                                     else
                                     {
                                         statusCode = 200; // OK
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositionTransactionLogs\": {jsonProductTransactionLogs}}}";
+                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"ProductTransactionLogs\": {jsonProductTransactionLogs}}}";
                                     }
 
                                     break;
