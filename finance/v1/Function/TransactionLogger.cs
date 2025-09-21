@@ -19,7 +19,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.20";
+        private static string version = "1.0.21";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -79,6 +79,7 @@ namespace FalxGroup.Finance.Function
                                 statusCode = 500;
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records inserted {response.Item1}" });
                             }
+
                             break;
                         }
                         case "PUT":
@@ -94,6 +95,7 @@ namespace FalxGroup.Finance.Function
                                 statusCode = 500;
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records updated {response.Item1}" });
                             }
+
                             break;
                         }
                         case "DELETE":
@@ -109,31 +111,56 @@ namespace FalxGroup.Finance.Function
                                 statusCode = 500;
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Records deleted {response.Item1}" });
                             }
+
                             break;
                         }
                         case "GET":
                         {
-                            if (2 == record.GetProcessType)
+                            switch (record.GetProcessType)
                             {
-                                string jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
-                                if (jsonOpenPositions.IsNullOrEmpty() || jsonOpenPositions == "[]")
+                                case 2: // get open positions
                                 {
-                                    statusCode = 204; // No Content
-                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    string jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
+                                    if (jsonOpenPositions.IsNullOrEmpty() || jsonOpenPositions == "[]")
+                                    {
+                                        statusCode = 204; // No Content
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    }
+                                    else
+                                    {
+                                        statusCode = 200; // OK
+                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositions\": {jsonOpenPositions}}}";
+                                    }
+
+                                    break;
                                 }
-                                else
+                                case 3: // get product transaction logs
                                 {
-                                    statusCode = 200; // OK
-                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositions\": {jsonOpenPositions}}}";
+                                    string jsonProductTransactionLogs = await TransactionLogger.processor.GetProductTransactionLogs(record);
+                                    if (jsonProductTransactionLogs.IsNullOrEmpty() || jsonProductTransactionLogs == "[]")
+                                    {
+                                        statusCode = 204; // No Content
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    }
+                                    else
+                                    {
+                                        statusCode = 200; // OK
+                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositionTransactionLogs\": {jsonProductTransactionLogs}}}";
+                                    }
+
+                                    break;
                                 }
-                            }
-                            else
-                            {
-                                statusCode = 200; // OK, but different message
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
-                            }
+                                default:
+                                {
+                                    statusCode = 200; // OK, but different message
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
+
+                                    break;
+                                }
+                            } // end switch on GET method 
+
                             break;
-                        }
+                        } // end switch GET method option
                     }
                 }
                 else
