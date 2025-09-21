@@ -136,6 +136,45 @@ public class TransactionLoggerService
         return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
     }
 
+    public async Task<string> GetProductTransactionLogs(TransactionLog record)
+    {
+        using SqlConnection connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogs] @ClientId, @sProductName";
+
+        using SqlCommand command = new SqlCommand(sqlQuery, connection);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+        command.Parameters.AddWithValue("@sProductName", record.ProductName);
+
+        using var reader = await command.ExecuteReaderAsync();
+        if (!reader.HasRows)
+        {
+            return "[]";
+        }
+
+        var jsonBuilder = new StringBuilder();
+        jsonBuilder.Append("[");
+
+        var columns = new string[reader.FieldCount];
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            columns[i] = reader.GetName(i);
+        }
+
+        while (await reader.ReadAsync())
+        {
+            jsonBuilder.Append("{");
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
+            }
+            jsonBuilder.Append("},");
+        }
+
+        return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
+    }
+
     string ConnectionString { get; }
 
 } /* end class TransactionLoggerService */
