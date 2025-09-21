@@ -45,7 +45,8 @@ namespace FalxGroup.Finance.Function
                             ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
                             UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
                             UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
-                            GetProcessType = int.TryParse(req.Query["get_process_type"], out var processType) ? processType : 0
+                            GetProcessType = int.TryParse(req.Query["get_process_type"], out var processType) ? processType : 0,
+                            ProductName = req.Query["product_name"]
                         };
                     }
                 }
