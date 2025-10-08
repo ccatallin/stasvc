@@ -57,7 +57,7 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[updateTransaction] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @Notes";
+        var sqlQuery = "EXEC [Klondike].[updateTransactionEx] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @Notes";
 
         using var command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
@@ -103,9 +103,10 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getOpenPositions] @ClientId";
+        var sqlQuery = "EXEC [Klondike].[getOpenPositionsEx] @UserId, @ClientId";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
+        command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
         using var reader = await command.ExecuteReaderAsync();
@@ -141,11 +142,12 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogs] @ClientId, @sProductName";
+        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogsEx] @sProductName, @UserId, @ClientId";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
         command.Parameters.AddWithValue("@sProductName", record.ProductName);
+        command.Parameters.AddWithValue("@UserId", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
         using var reader = await command.ExecuteReaderAsync();
         if (!reader.HasRows)
