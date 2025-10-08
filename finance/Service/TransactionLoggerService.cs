@@ -69,7 +69,7 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
         command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
-        command.Parameters.AddWithValue("@ModifiedById", record.ClientId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
         command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
 
         var result = await command.ExecuteNonQueryAsync();
