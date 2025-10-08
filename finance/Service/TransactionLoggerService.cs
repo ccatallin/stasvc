@@ -57,7 +57,7 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[updateTransactionEx] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @Notes";
+        var sqlQuery = "EXEC [Klondike].[updateTransactionEx] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @ClientId, @Notes";
 
         using var command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
@@ -69,6 +69,7 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
         command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
+        command.Parameters.AddWithValue("@ModifiedById", record.ClientId);
         command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
 
         var result = await command.ExecuteNonQueryAsync();
