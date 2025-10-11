@@ -19,7 +19,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.22";
+        private static string version = "1.0.23";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -147,6 +147,22 @@ namespace FalxGroup.Finance.Function
                                     {
                                         statusCode = 200; // OK
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"ProductTransactionLogs\": {jsonProductTransactionLogs}}}";
+                                    }
+
+                                    break;
+                                }
+                                case 4: // get realized profit and loss
+                                {
+                                    string jsonRealizedProfitAndLoss = await TransactionLogger.processor.GetRealizedProfitAndLoss(record);
+                                    if (jsonRealizedProfitAndLoss.IsNullOrEmpty() || jsonRealizedProfitAndLoss == "[]")
+                                    {
+                                        statusCode = 204; // No Content
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    }
+                                    else
+                                    {
+                                        statusCode = 200; // OK
+                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"RealizedProfitAndLoss\": {jsonRealizedProfitAndLoss}}}";
                                     }
 
                                     break;
