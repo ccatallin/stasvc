@@ -127,7 +127,7 @@ public class TransactionLoggerService
 
         while (await reader.ReadAsync())
         {
-            jsonBuilder.Append("{");
+            jsonBuilder.Append('{');
             for (int i = 0; i < reader.FieldCount; i++)
             {
                 jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
@@ -157,7 +157,7 @@ public class TransactionLoggerService
         }
 
         var jsonBuilder = new StringBuilder();
-        jsonBuilder.Append("[");
+        jsonBuilder.Append('[');
 
         var columns = new string[reader.FieldCount];
         for (int i = 0; i < reader.FieldCount; i++)
@@ -178,7 +178,7 @@ public class TransactionLoggerService
         return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
     }
 
-    public async Task<string> GetProfitAndLoss(TransactionLog record)
+    public async Task<string> GetRealizedProfitAndLoss(TransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -197,7 +197,7 @@ public class TransactionLoggerService
         }
 
         var jsonBuilder = new StringBuilder();
-        jsonBuilder.Append("[");
+        jsonBuilder.Append('[');
 
         var columns = new string[reader.FieldCount];
         for (int i = 0; i < reader.FieldCount; i++)
@@ -207,7 +207,7 @@ public class TransactionLoggerService
 
         while (await reader.ReadAsync())
         {
-            jsonBuilder.Append("{");
+            jsonBuilder.Append('{');
             for (int i = 0; i < reader.FieldCount; i++)
             {
                 jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
