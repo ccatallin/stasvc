@@ -14,12 +14,13 @@ using Newtonsoft.Json;
 using FalxGroup.Finance.Service;
 using FalxGroup.Finance.Model;
 using Microsoft.IdentityModel.Tokens;
+using System.Globalization;
 
 namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.24";
+        private static string version = "1.0.25";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -46,7 +47,9 @@ namespace FalxGroup.Finance.Function
                             UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
                             UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
                             GetProcessType = int.TryParse(req.Query["get_process_type"], out var processType) ? processType : 0,
-                            ProductName = req.Query["product_name"]
+                            ProductName = req.Query["product_name"],
+                            StartDate = !String.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
+                            EndDate = !String.IsNullOrEmpty(req.Query["end_date"]) ? DateTime.Parse(req.Query["end_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null
                         };
                     }
                 }

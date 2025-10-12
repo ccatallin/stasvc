@@ -183,11 +183,13 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getProfitAndLoss] @UserId, @ClientId, @realized";
+        var sqlQuery = "EXEC [Klondike].[getProfitAndLossEx] @UserId, @ClientId, @StartDate, @EndDate, @realized";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
+        command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
+        command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
         command.Parameters.AddWithValue("@realized", 1);
 
         using var reader = await command.ExecuteReaderAsync();
