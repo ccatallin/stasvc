@@ -20,7 +20,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.25";
+        private static string version = "1.0.26";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -122,6 +122,22 @@ namespace FalxGroup.Finance.Function
                         {
                             switch (record.GetProcessType)
                             {
+                                case 1: // get raw transaction logs
+                                {
+                                    string jsonTransactionLogs = await TransactionLogger.processor.GetTransactionLogs(record);
+                                    if (jsonTransactionLogs.IsNullOrEmpty() || jsonTransactionLogs == "[]")
+                                    {
+                                        statusCode = 204; // No Content
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    }
+                                    else
+                                    {
+                                        statusCode = 200; // OK
+                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"TransactionLogs\": {jsonTransactionLogs}}}";
+                                    }
+
+                                    break;
+                                }
                                 case 2: // get open positions
                                 {
                                     string jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
