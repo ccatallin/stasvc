@@ -36,6 +36,9 @@ public class TransactionLog
     [DataMember(Name = "transaction_type")]
     public int TransactionType { get; set; }
 
+    [DataMember(Name = "financial_product_id")]
+    public int FinancialProductId { get; set; }
+
     [DataMember(Name = "product_type")]
     public int ProductType { get; set; }
     

@@ -25,27 +25,49 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[logTransaction] @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @CreatedById, @ClientId, @Notes, @TransactionId OUTPUT";
+
+        String sqlQuery = String.Empty;
+
+        switch (record.FinancialProductId)
+        {
+            case 1: // Option
+            {
+                sqlQuery = "EXEC [Klondike].[logOptionTransaction] @Date, @Type, @ProductName, @ProductTypeId, @Quantity, @Price, @Fees, @CreatedById, @ClientId, @Notes, @Id OUTPUT";
+                break;
+            }
+            case 2: // Equity
+            {
+                sqlQuery = "EXEC [Klondike].[logStockTransaction] @Date, @Type, @ProductName, @ProductTypeId, @Quantity, @Price, @Fees, @CreatedById, @ClientId, @Notes, @Id OUTPUT";
+                break;
+            }
+            case 3:  // Future
+            {
+                sqlQuery = "EXEC [Klondike].[logFutureTransaction] @Date, @Type, @ProductName, @ProductTypeId, @Quantity, @Price, @Fees, @CreatedById, @ClientId, @Notes, @Id OUTPUT";
+                break;
+            }
+            default:
+                return new Tuple<int, string>(-1, null);
+        }
 
         using var command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@TransactionDate", record.TransactionDate);
-        command.Parameters.AddWithValue("@TransactionType", record.TransactionType);
+        command.Parameters.AddWithValue("@Date", record.TransactionDate);
+        command.Parameters.AddWithValue("@Type", record.TransactionType);
         command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
         command.Parameters.AddWithValue("@ProductTypeId", record.ProductType);
-        command.Parameters.AddWithValue("@NoContracts", record.NoContracts);
-        command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
-        command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
+        command.Parameters.AddWithValue("@Quantity", record.NoContracts);
+        command.Parameters.AddWithValue("@Price", record.ContractPrice);
+        command.Parameters.AddWithValue("@Fees", record.TransactionFees);
         command.Parameters.AddWithValue("@CreatedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
         command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
 
-        command.Parameters.Add("@TransactionId", System.Data.SqlDbType.VarChar, 100);
-        command.Parameters["@TransactionId"].Direction = System.Data.ParameterDirection.Output;
+        command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100);
+        command.Parameters["@Id"].Direction = System.Data.ParameterDirection.Output;
 
         var result = await command.ExecuteNonQueryAsync();
-        var transactionId = Convert.ToString(command.Parameters["@TransactionId"].Value);
+        var id = Convert.ToString(command.Parameters["@Id"].Value);
 
-        return new Tuple<int, string>(result, transactionId);
+        return new Tuple<int, string>(result, id);
     }
 
     public async Task<Tuple<int, string>> UpdateTransaction(TransactionLog record)
