@@ -116,7 +116,7 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getOpenPositionsEx] @UserId, @ClientId";
+        var sqlQuery = "EXEC [Klondike].[getOpenPositions] @UserId, @ClientId";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@UserId", record.UserId);
@@ -130,7 +130,7 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogsEx] @sProductName, @UserId, @ClientId";
+        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogs] @sProductName, @UserId, @ClientId";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@sProductName", record.ProductName);
