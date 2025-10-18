@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 // --
 using Microsoft.Data.SqlClient;
 // --
+using Newtonsoft.Json;
 using FalxGroup.Finance.Model;
 
 namespace FalxGroup.Finance.Service
@@ -25,38 +26,20 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-
-        String sqlQuery = String.Empty;
-
-        switch (record.FinancialProductId)
-        {
-            case 1: // Option
-            {
-                sqlQuery = "EXEC [Klondike].[logOptionTransaction] @Date, @Type, @ProductName, @ProductTypeId, @Quantity, @Price, @Fees, @CreatedById, @ClientId, @Notes, @Id OUTPUT";
-                break;
-            }
-            case 2: // Equity
-            {
-                sqlQuery = "EXEC [Klondike].[logStockTransaction] @Date, @Type, @ProductName, @ProductTypeId, @Quantity, @Price, @Fees, @CreatedById, @ClientId, @Notes, @Id OUTPUT";
-                break;
-            }
-            case 3:  // Future
-            {
-                sqlQuery = "EXEC [Klondike].[logFutureTransaction] @Date, @Type, @ProductName, @ProductTypeId, @Quantity, @Price, @Fees, @CreatedById, @ClientId, @Notes, @Id OUTPUT";
-                break;
-            }
-            default:
-                return new Tuple<int, string>(-1, null);
-        }
+        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Id OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@Date", record.TransactionDate);
-        command.Parameters.AddWithValue("@Type", record.TransactionType);
+
+        command.Parameters.AddWithValue("@Date", record.Date);
+        command.Parameters.AddWithValue("@TypeId", record.TypeId);
+        
+        command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);        
+        command.Parameters.AddWithValue("@ProductTypeId", record.ProductTypeId);
         command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
-        command.Parameters.AddWithValue("@ProductTypeId", record.ProductType);
-        command.Parameters.AddWithValue("@Quantity", record.NoContracts);
-        command.Parameters.AddWithValue("@Price", record.ContractPrice);
-        command.Parameters.AddWithValue("@Fees", record.TransactionFees);
+        command.Parameters.AddWithValue("@Quantity", record.Quantity);
+        command.Parameters.AddWithValue("@Price", record.Price);
+        command.Parameters.AddWithValue("@Fees", record.Fees);
+        
         command.Parameters.AddWithValue("@CreatedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
         command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
@@ -70,39 +53,45 @@ public class TransactionLoggerService
         return new Tuple<int, string>(result, id);
     }
 
-    public async Task<Tuple<int, string>> UpdateTransaction(TransactionLog record)
+    public async Task<Tuple<int, string>> UpdateTransactionLog(TransactionLog record)
     {
-        if (record == null || record.IsEmpty || string.IsNullOrWhiteSpace(record.TransactionId))
+        if (record == null || record.IsEmpty || string.IsNullOrWhiteSpace(record.Id))
         {
             return new Tuple<int, string>(-1, null);
         }
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[updateTransactionEx] @TransactionId, @TransactionDate, @TransactionType, @ProductName, @ProductTypeId, @NoContracts, @ContractPrice, @TransactionFees, @ModifiedById, @ClientId, @Notes";
+        var sqlQuery = "EXEC [Klondike].[updateTransactionLog] @Id, @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @ModifiedById, @ClientId";
 
         using var command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
-        command.Parameters.AddWithValue("@TransactionDate", record.TransactionDate);
-        command.Parameters.AddWithValue("@TransactionType", record.TransactionType);
+
+        command.Parameters.AddWithValue("@Id", record.Id);
+        
+        command.Parameters.AddWithValue("@Date", record.Date);
+        command.Parameters.AddWithValue("@TypeId", record.TypeId);
+        
+        command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);
+        command.Parameters.AddWithValue("@ProductTypeId", record.ProductTypeId);
         command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
-        command.Parameters.AddWithValue("@ProductTypeId", record.ProductType);
-        command.Parameters.AddWithValue("@NoContracts", record.NoContracts);
-        command.Parameters.AddWithValue("@ContractPrice", record.ContractPrice);
-        command.Parameters.AddWithValue("@TransactionFees", record.TransactionFees);
+        command.Parameters.AddWithValue("@Quantity", record.Quantity);
+        command.Parameters.AddWithValue("@Price", record.Price);
+        command.Parameters.AddWithValue("@Fees", record.Fees);
+
+        command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
+            
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
 
         var result = await command.ExecuteNonQueryAsync();
-        var transactionId = record.TransactionId;
+        var id = record.Id;
 
-        return new Tuple<int, string>(result, transactionId);
+        return new Tuple<int, string>(result, id);
     }
 
-    public async Task<Tuple<int, string>> DeleteTransaction(TransactionLog record)
+    public async Task<Tuple<int, string>> DeleteTransactionLog(TransactionLog record)
     {
-        if (string.IsNullOrWhiteSpace(record?.TransactionId))
+        if (string.IsNullOrWhiteSpace(record?.Id))
         {
             return new Tuple<int, string>(-1, null);
         }
@@ -110,15 +99,16 @@ public class TransactionLoggerService
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[deleteTransaction] @TransactionId, @ModifiedById, @ClientId";
+        var sqlQuery = "EXEC [Klondike].[deleteTransactionLog] @Id, @ModifiedById, @ClientId";
 
         using var command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@TransactionId", record.TransactionId);
+        
+        command.Parameters.AddWithValue("@Id", record.Id);
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
         var result = await command.ExecuteNonQueryAsync();
-        return new Tuple<int, string>(result, record.TransactionId);
+        return new Tuple<int, string>(result, record.Id);
     }
 
     public async Task<string> GetOpenPositions(TransactionLog record)
@@ -132,32 +122,7 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-        using var reader = await command.ExecuteReaderAsync();
-        if (!reader.HasRows)
-        {
-            return "[]";
-        }
-
-        var jsonBuilder = new StringBuilder();
-        jsonBuilder.Append("[");
-
-        var columns = new string[reader.FieldCount];
-        for (int i = 0; i < reader.FieldCount; i++)
-        {
-            columns[i] = reader.GetName(i);
-        }
-
-        while (await reader.ReadAsync())
-        {
-            jsonBuilder.Append('{');
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
-            }
-            jsonBuilder.Append("},");
-        }
-
-        return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
+        return await ReadToJsonAsync(command);
     }
 
     public async Task<string> GetProductTransactionLogs(TransactionLog record)
@@ -172,32 +137,7 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-        using var reader = await command.ExecuteReaderAsync();
-        if (!reader.HasRows)
-        {
-            return "[]";
-        }
-
-        var jsonBuilder = new StringBuilder();
-        jsonBuilder.Append('[');
-
-        var columns = new string[reader.FieldCount];
-        for (int i = 0; i < reader.FieldCount; i++)
-        {
-            columns[i] = reader.GetName(i);
-        }
-
-        while (await reader.ReadAsync())
-        {
-            jsonBuilder.Append("{");
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
-            }
-            jsonBuilder.Append("},");
-        }
-
-        return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
+        return await ReadToJsonAsync(command);
     }
 
     public async Task<string> GetRealizedProfitAndLoss(TransactionLog record)
@@ -214,32 +154,7 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
         command.Parameters.AddWithValue("@realized", 1);
 
-        using var reader = await command.ExecuteReaderAsync();
-        if (!reader.HasRows)
-        {
-            return "[]";
-        }
-
-        var jsonBuilder = new StringBuilder();
-        jsonBuilder.Append('[');
-
-        var columns = new string[reader.FieldCount];
-        for (int i = 0; i < reader.FieldCount; i++)
-        {
-            columns[i] = reader.GetName(i);
-        }
-
-        while (await reader.ReadAsync())
-        {
-            jsonBuilder.Append('{');
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
-            }
-            jsonBuilder.Append("},");
-        }
-
-        return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
+        return await ReadToJsonAsync(command);
     }
 
     public async Task<string> GetTransactionLogs(TransactionLog record)
@@ -247,7 +162,7 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getTransactions] @UserId, @ClientId, @StartDate, @EndDate";
+        var sqlQuery = "EXEC [Klondike].[getTransactionLogs] @UserId, @ClientId, @StartDate, @EndDate";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@UserId", record.UserId);
@@ -255,14 +170,18 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
         command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
 
+        return await ReadToJsonAsync(command);
+    }
+
+    private async Task<string> ReadToJsonAsync(SqlCommand command)
+    {
         using var reader = await command.ExecuteReaderAsync();
         if (!reader.HasRows)
         {
             return "[]";
         }
 
-        var jsonBuilder = new StringBuilder();
-        jsonBuilder.Append('[');
+        var jsonBuilder = new StringBuilder("[");
 
         var columns = new string[reader.FieldCount];
         for (int i = 0; i < reader.FieldCount; i++)
@@ -270,17 +189,26 @@ public class TransactionLoggerService
             columns[i] = reader.GetName(i);
         }
 
+        var firstRow = true;
         while (await reader.ReadAsync())
         {
+            if (!firstRow)
+            {
+                jsonBuilder.Append(',');
+            }
+            firstRow = false;
+
             jsonBuilder.Append('{');
             for (int i = 0; i < reader.FieldCount; i++)
             {
-                jsonBuilder.AppendFormat("\"{0}\":\"{1}\"{2}", columns[i], reader[i], i < reader.FieldCount - 1 ? "," : "");
+                // Using JsonConvert to handle proper escaping and type formatting (numbers, strings, dates, etc.)
+                var value = JsonConvert.SerializeObject(reader[i]);
+                jsonBuilder.AppendFormat("\"{0}\":{1}{2}", columns[i], value, i < reader.FieldCount - 1 ? "," : "");
             }
-            jsonBuilder.Append("},");
+            jsonBuilder.Append('}');
         }
 
-        return jsonBuilder.Remove(jsonBuilder.Length - 1, 1).Append("]").ToString();
+        return jsonBuilder.Append(']').ToString();
     }
 
     string ConnectionString { get; }

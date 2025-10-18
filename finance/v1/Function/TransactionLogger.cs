@@ -20,7 +20,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.26";
+        private static string version = "1.0.27";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -46,7 +46,8 @@ namespace FalxGroup.Finance.Function
                             ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
                             UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
                             UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
-                            GetProcessType = int.TryParse(req.Query["get_process_type"], out var processType) ? processType : 0,
+                            GetProcessTypeId = int.TryParse(req.Query["get_process_type_id"], out var processType) ? processType : 0,
+                            ProductCategoryId = int.TryParse(req.Query["product_category_id"], out var productCategoryId) ? productCategoryId : 0,
                             ProductName = req.Query["product_name"],
                             StartDate = !String.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
                             EndDate = !String.IsNullOrEmpty(req.Query["end_date"]) ? DateTime.Parse(req.Query["end_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null
@@ -76,7 +77,7 @@ namespace FalxGroup.Finance.Function
                             if (1 == response.Item1)
                             {
                                 statusCode = 201; // Created
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, TransactionId = response.Item2 });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
                             }
                             else
                             {
@@ -88,11 +89,11 @@ namespace FalxGroup.Finance.Function
                         }
                         case "PUT":
                         {
-                            var response = await TransactionLogger.processor.UpdateTransaction(record);
+                            var response = await TransactionLogger.processor.UpdateTransactionLog(record);
                             if (1 == response.Item1)
                             {
                                 statusCode = 200; // OK
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, TransactionId = response.Item2 });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
                             }
                             else
                             {
@@ -104,11 +105,11 @@ namespace FalxGroup.Finance.Function
                         }
                         case "DELETE":
                         {
-                            var response = await TransactionLogger.processor.DeleteTransaction(record);
+                            var response = await TransactionLogger.processor.DeleteTransactionLog(record);
                             if (1 == response.Item1)
                             {
                                 statusCode = 200; // OK
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, TransactionId = response.Item2 });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
                             }
                             else
                             {
@@ -120,7 +121,7 @@ namespace FalxGroup.Finance.Function
                         }
                         case "GET":
                         {
-                            switch (record.GetProcessType)
+                            switch (record.GetProcessTypeId)
                             {
                                 case 1: // get raw transaction logs
                                 {

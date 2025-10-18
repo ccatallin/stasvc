@@ -13,49 +13,62 @@ public class TransactionLog
 
     }
 
-    public TransactionLog(int transactionType, int productType, string productName, int noContracts,
-        double contractPrice, double transactionFees, DateTime transactionDate, long userId, long clientId,
-        long userAccountId, string notes, string transactionId, string applicationKey, int getProcessType = 2)
+    public TransactionLog(string id, DateTime date, int typeId, int productCategoryId, int productTypeId, string productName,
+        int quantity, decimal price, decimal fees, string notes, long userId, long clientId, long userAccountId, string applicationKey,
+        int getProcessType = 2)
     {
-        this.TransactionType = transactionType;
-        this.ProductType = productType;
+        this.Id = id;
+        
+        this.Date = date;
+        this.TypeId = typeId;
+        this.ProductCategoryId = productCategoryId;
+        this.ProductTypeId = productTypeId;
         this.ProductName = productName;
-        this.NoContracts = noContracts;
-        this.ContractPrice = contractPrice;
-        this.TransactionFees = transactionFees;
-        this.TransactionDate = transactionDate;
+        
+        this.Quantity = quantity;
+        this.Price = price;
+        this.Fees = fees;
+
+        this.Notes = notes;
+            
         this.UserId = userId;
         this.ClientId = clientId;
         this.UserAccountId = userAccountId;
-        this.Notes = notes;
+
         this.ApplicationKey = applicationKey;
-        this.TransactionId = transactionId;
-        this.GetProcessType = getProcessType;
+        this.GetProcessTypeId = getProcessType;
     }
 
-    [DataMember(Name = "transaction_type")]
-    public int TransactionType { get; set; }
-
-    [DataMember(Name = "financial_product_id")]
-    public int FinancialProductId { get; set; }
-
-    [DataMember(Name = "product_type")]
-    public int ProductType { get; set; }
+   [DataMember(Name = "id")]
+    public string Id { get; set; }
     
+    [DataMember(Name = "product_category_id")]
+    public int ProductCategoryId { get; set; }
+
+    [DataMember(Name = "type_id")] /* BUY/SELL */
+    public int TypeId { get; set; }
+
+    [DataMember(Name = "product_type_id")]
+    public int ProductTypeId { get; set; }
+
     [DataMember(Name = "product_name")]
     public string ProductName { get; set; }
 
-    [DataMember(Name = "product_quantity")]
-    public int NoContracts { get; set; }
+    [DataMember(Name = "quantity")]
+    public int Quantity { get; set; }
 
-    [DataMember(Name = "product_price")]
-    public double ContractPrice { get; set; }
+    [DataMember(Name = "price")]
+    public decimal Price { get; set; }
 
-    [DataMember(Name = "transaction_fees")]
-    public double TransactionFees { get; set; }
+    [DataMember(Name = "fees")]
+    public decimal Fees { get; set; }
 
-    [DataMember(Name = "transaction_date")]
-    public DateTime TransactionDate { get; set; }
+    [DataMember(Name = "date")]
+    public DateTime Date { get; set; }
+
+    [DataMember(Name = "notes")]
+    public string Notes { get; set; }
+
 
     [DataMember(Name = "user_id")]
     public long UserId { get; set; }
@@ -66,17 +79,11 @@ public class TransactionLog
     [DataMember(Name = "user_account_id")]
     public long UserAccountId { get; set; }
 
-    [DataMember(Name = "notes")]
-    public string Notes { get; set; }
-
-    [DataMember(Name = "transaction_id")]
-    public string TransactionId { get; set; }
-
     [DataMember(Name = "application_key")]
     public string ApplicationKey { get; set; }
 
-    [DataMember(Name = "get_process_type")]
-    public int GetProcessType { get; set; }
+    [DataMember(Name = "get_process_type_id")]
+    public int GetProcessTypeId { get; set; }
 
     [DataMember(Name = "start_date")]
     public DateTime? StartDate { get; set; }
@@ -84,7 +91,7 @@ public class TransactionLog
     [DataMember(Name = "end_date")]
     public DateTime? EndDate { get; set; }
 
-    public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductName) || (0 == this.NoContracts);
+    public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductName) || (0 == this.Quantity);
 } /* end class TransactionLog */
 
 } /* end FalxGroup.Finance.Model namespace */
