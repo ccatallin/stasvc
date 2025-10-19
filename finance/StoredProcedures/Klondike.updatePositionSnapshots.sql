@@ -36,9 +36,9 @@ BEGIN
             [Price],
             [Fees] AS TransactionFees,
             IIF([OperationId] = -1, [Quantity], -[Quantity]) AS SignedQuantity,
-            IIF([OperationId] = -1, ([Quantity] * [Price]) + [Fees], 0) AS BuyCost,
+            IIF([OperationId] = -1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) + [Fees], 0) AS BuyCost,
             IIF([OperationId] = -1, [Quantity], 0) AS BuyQuantity,
-            IIF([OperationId] = 1, ([Quantity] * [Price]) - [Fees], 0) AS SellValue,
+            IIF([OperationId] = 1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) - [Fees], 0) AS SellValue,
             IIF([OperationId] = 1, [Quantity], 0) AS SellQuantity
         FROM Klondike.TransactionLogs WITH (NOLOCK)
         WHERE
