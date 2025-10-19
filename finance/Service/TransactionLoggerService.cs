@@ -26,7 +26,7 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Id OUTPUT";
+        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Id OUTPUT, @InsertedCount OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
 
@@ -47,13 +47,13 @@ public class TransactionLoggerService
         command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100);
         command.Parameters["@Id"].Direction = System.Data.ParameterDirection.Output;
 
-        var returnParameter = command.Parameters.Add("@RETURN_VALUE", System.Data.SqlDbType.Int);
-        returnParameter.Direction = System.Data.ParameterDirection.ReturnValue;
+        var insertedCountParameter = command.Parameters.Add("@InsertedCount", System.Data.SqlDbType.Int);
+        insertedCountParameter.Direction = System.Data.ParameterDirection.Output;
 
         await command.ExecuteNonQueryAsync();
 
         var id = Convert.ToString(command.Parameters["@Id"].Value);
-        var result = (int)returnParameter.Value;
+        var result = (int)insertedCountParameter.Value;
         return new Tuple<int, string>(result, id);
     }
 
@@ -66,7 +66,7 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[updateTransactionLog] @Id, @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @ModifiedById, @ClientId";
+        var sqlQuery = "EXEC [Klondike].[updateTransactionLog] @Id, @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @ModifiedById, @ClientId, @UpdatedCount OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
 
@@ -87,12 +87,12 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-        var returnParameter = command.Parameters.Add("@RETURN_VALUE", System.Data.SqlDbType.Int);
-        returnParameter.Direction = System.Data.ParameterDirection.ReturnValue;
+        var updatedCountParameter = command.Parameters.Add("UpdatedCount", System.Data.SqlDbType.Int);
+        updatedCountParameter.Direction = System.Data.ParameterDirection.Output;
 
         await command.ExecuteNonQueryAsync();
 
-        var result = (int)returnParameter.Value;
+        var result = (int)updatedCountParameter.Value;
         return new Tuple<int, string>(result, record.Id);
     }
 
@@ -106,7 +106,7 @@ public class TransactionLoggerService
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[deleteTransactionLog] @Id, @ModifiedById, @ClientId";
+        var sqlQuery = "EXEC [Klondike].[deleteTransactionLog] @Id, @ModifiedById, @ClientId, @DeletedCount OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
         
@@ -114,12 +114,12 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-        var returnParameter = command.Parameters.Add("@RETURN_VALUE", System.Data.SqlDbType.Int);
-        returnParameter.Direction = System.Data.ParameterDirection.ReturnValue;
+        var deletedCountParameter = command.Parameters.Add("@DeletedCount", System.Data.SqlDbType.Int);
+        deletedCountParameter.Direction = System.Data.ParameterDirection.Output;
 
         await command.ExecuteNonQueryAsync();
         
-        var result = (int)returnParameter.Value;
+        var result = (int)deletedCountParameter.Value;
         return new Tuple<int, string>(result, record.Id);
     }
 
