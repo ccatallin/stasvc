@@ -48,17 +48,41 @@ BEGIN
     RunningTotals AS (
         SELECT
             *,
+            -- Running quantity is used to determine the start of a new lot.
             ISNULL(SUM(SignedQuantity) OVER (
                 PARTITION BY ProductSymbol
                 ORDER BY TransactionDate, TransactionId
                 ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-            ), 0) AS PreviousRunningQuantity
+            ), 0) AS PreviousRunningQuantity,
+            -- These running totals are for the entire history of the product,
+            -- which will be used later to calculate lot-specific values.
+            SUM(BuyQuantity) OVER (
+                PARTITION BY ProductSymbol ORDER BY TransactionDate, TransactionId
+            ) AS CumulativeBuyQuantity,
+            SUM(BuyCost) OVER (
+                PARTITION BY ProductSymbol ORDER BY TransactionDate, TransactionId
+            ) AS CumulativeBuyCost,
+            SUM(SellQuantity) OVER (
+                PARTITION BY ProductSymbol ORDER BY TransactionDate, TransactionId
+            ) AS CumulativeSellQuantity,
+            SUM(SellValue) OVER (
+                PARTITION BY ProductSymbol ORDER BY TransactionDate, TransactionId
+            ) AS CumulativeSellValue
         FROM OrderedTrades
     ),
     LotIdentifier AS (
         SELECT
             *,
-            IIF((TransactionType = -1 AND PreviousRunningQuantity <= 0) OR (TransactionType = 1 AND PreviousRunningQuantity >= 0), 1, 0) AS IsNewLot
+            -- This simplified CASE statement correctly identifies a new lot only when
+            -- starting from zero or when the position *crosses* zero (flips sign).
+            -- It correctly keeps closing trades within the same lot.
+            CASE
+                WHEN PreviousRunningQuantity = 0 THEN 1
+                -- A new lot is only created if the sign of the position *flips*.
+                -- A closing trade that results in zero should NOT start a new lot.
+                WHEN SIGN(PreviousRunningQuantity) * SIGN(PreviousRunningQuantity + SignedQuantity) = -1 THEN 1
+                ELSE 0
+            END AS IsNewLot
         FROM RunningTotals
     ),
     LotGroups AS (
@@ -76,13 +100,13 @@ BEGIN
             LotGroupID,
             MAX(ProductCategoryId) AS ProductCategoryId,
             MAX(ProductId) AS ProductId,
-            SUM(SignedQuantity) AS NetQuantityChange,
+            SUM(SignedQuantity) AS NetQuantityChange, -- Daily change is fine
             SUM(BuyCost) AS NetBuyCost,
             SUM(BuyQuantity) AS NetBuyQuantity,
             SUM(SellValue) AS NetSellValue,
             SUM(SellQuantity) AS NetSellQuantity,
-            SUM(TransactionFees) AS NetCommission
-        FROM LotGroups
+            SUM(TransactionFees) AS NetCommission -- Daily change
+        FROM LotGroups -- Reverting to use LotGroups directly
         GROUP BY CAST(TransactionDate AS DATE), LotGroupID
     ),
     RunningDailyState AS (
@@ -96,7 +120,7 @@ BEGIN
             SUM(NetBuyQuantity) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalBuyQuantity,
             SUM(NetSellValue) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalSellValue,
             SUM(NetSellQuantity) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalSellQuantity,
-            SUM(NetCommission) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalCommission
+            SUM(NetCommission) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalCommission -- Commission is still a simple running sum
         FROM DailyState
     ),
     FinalCalculation AS (
@@ -132,9 +156,11 @@ BEGIN
         Commission,
         -- Calculate the average price based on whether it's a long or short position
         IIF(
-            OpenQuantity > 0,
-            TotalBuyCost / NULLIF(TotalBuyQuantity, 0),
-            TotalSellValue / NULLIF(TotalSellQuantity, 0)
+            OpenQuantity = 0, 0, -- Avoid division by zero for closed positions
+            IIF(
+                OpenQuantity > 0,
+                TotalBuyCost / NULLIF(TotalBuyQuantity, 0),
+                TotalSellValue / NULLIF(TotalSellQuantity, 0))
         ) AS AveragePrice
     FROM FinalCalculation;
 
