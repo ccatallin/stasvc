@@ -47,9 +47,13 @@ public class TransactionLoggerService
         command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100);
         command.Parameters["@Id"].Direction = System.Data.ParameterDirection.Output;
 
-        var result = await command.ExecuteNonQueryAsync();
-        var id = Convert.ToString(command.Parameters["@Id"].Value);
+        var returnParameter = command.Parameters.Add("@RETURN_VALUE", System.Data.SqlDbType.Int);
+        returnParameter.Direction = System.Data.ParameterDirection.ReturnValue;
 
+        await command.ExecuteNonQueryAsync();
+
+        var id = Convert.ToString(command.Parameters["@Id"].Value);
+        var result = (int)returnParameter.Value;
         return new Tuple<int, string>(result, id);
     }
 
@@ -83,10 +87,13 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-        var result = await command.ExecuteNonQueryAsync();
-        var id = record.Id;
+        var returnParameter = command.Parameters.Add("@RETURN_VALUE", System.Data.SqlDbType.Int);
+        returnParameter.Direction = System.Data.ParameterDirection.ReturnValue;
 
-        return new Tuple<int, string>(result, id);
+        await command.ExecuteNonQueryAsync();
+
+        var result = (int)returnParameter.Value;
+        return new Tuple<int, string>(result, record.Id);
     }
 
     public async Task<Tuple<int, string>> DeleteTransactionLog(TransactionLog record)
@@ -107,7 +114,12 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@ModifiedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
-        var result = await command.ExecuteNonQueryAsync();
+        var returnParameter = command.Parameters.Add("@RETURN_VALUE", System.Data.SqlDbType.Int);
+        returnParameter.Direction = System.Data.ParameterDirection.ReturnValue;
+
+        await command.ExecuteNonQueryAsync();
+        
+        var result = (int)returnParameter.Value;
         return new Tuple<int, string>(result, record.Id);
     }
 
