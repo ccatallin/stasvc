@@ -26,16 +26,16 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Id OUTPUT, @InsertedCount OUTPUT";
+        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Id OUTPUT, @InsertedCount OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
 
         command.Parameters.AddWithValue("@Date", record.Date);
-        command.Parameters.AddWithValue("@TypeId", record.TypeId);
+        command.Parameters.AddWithValue("@OperationId", record.OperationId);
         
         command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);        
-        command.Parameters.AddWithValue("@ProductTypeId", record.ProductTypeId);
-        command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
+        command.Parameters.AddWithValue("@ProductId", record.ProductId);
+        command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol.Trim());
         command.Parameters.AddWithValue("@Quantity", record.Quantity);
         command.Parameters.AddWithValue("@Price", record.Price);
         command.Parameters.AddWithValue("@Fees", record.Fees);
@@ -71,18 +71,18 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[updateTransactionLog] @Id, @Date, @TypeId, @ProductCategoryId, @ProductTypeId, @ProductName, @Quantity, @Price, @Fees, @Notes, @ModifiedById, @ClientId, @UpdatedCount OUTPUT";
+        var sqlQuery = "EXEC [Klondike].[updateTransactionLog] @Id, @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @ModifiedById, @ClientId, @UpdatedCount OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
 
         command.Parameters.AddWithValue("@Id", record.Id);
         
         command.Parameters.AddWithValue("@Date", record.Date);
-        command.Parameters.AddWithValue("@TypeId", record.TypeId);
+        command.Parameters.AddWithValue("@OperationId", record.OperationId);
         
         command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);
-        command.Parameters.AddWithValue("@ProductTypeId", record.ProductTypeId);
-        command.Parameters.AddWithValue("@ProductName", record.ProductName.Trim());
+        command.Parameters.AddWithValue("@ProductId", record.ProductId);
+        command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol.Trim());
         command.Parameters.AddWithValue("@Quantity", record.Quantity);
         command.Parameters.AddWithValue("@Price", record.Price);
         command.Parameters.AddWithValue("@Fees", record.Fees);
@@ -151,10 +151,10 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogs] @sProductName, @UserId, @ClientId";
+        var sqlQuery = "EXEC [Klondike].[getProductTransactionLogs] @ProductSymbol, @UserId, @ClientId";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@sProductName", record.ProductName);
+        command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol);
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 

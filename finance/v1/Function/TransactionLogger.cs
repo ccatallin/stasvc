@@ -20,7 +20,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.29";
+        private static string version = "1.0.30";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -48,7 +48,8 @@ namespace FalxGroup.Finance.Function
                             UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
                             GetProcessTypeId = int.TryParse(req.Query["get_process_type_id"], out var processType) ? processType : 0,
                             ProductCategoryId = int.TryParse(req.Query["product_category_id"], out var productCategoryId) ? productCategoryId : 0,
-                            ProductName = req.Query["product_name"],
+                            ProductId = int.TryParse(req.Query["product_id"], out var productId) ? productId : 0,
+                            ProductSymbol = req.Query["product_symbol"],
                             StartDate = !String.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
                             EndDate = !String.IsNullOrEmpty(req.Query["end_date"]) ? DateTime.Parse(req.Query["end_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null
                         };
@@ -82,7 +83,7 @@ namespace FalxGroup.Finance.Function
                             else if (-2 == response.Item1)
                             {
                                 statusCode = 409; // Conflict
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"A product named '{record.ProductName}' already exists with a different category or type." });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"A product named '{record.ProductSymbol}' already exists with a different category or type." });
                             }
                             else
                             {
@@ -103,7 +104,7 @@ namespace FalxGroup.Finance.Function
                             else if (-2 == response.Item1)
                             {
                                 statusCode = 409; // Conflict
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Updating this transaction for product '{record.ProductName}' would create a conflict with an existing product's category or type." });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Updating this transaction for product '{record.ProductSymbol}' would create a conflict with an existing product's category or type." });
                             }
                             else
                             {
