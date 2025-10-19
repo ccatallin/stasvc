@@ -9,7 +9,7 @@ GO
 -- =============================================
 CREATE PROCEDURE [Klondike].[getProductTransactionLogs] 
 
-@sProductName as VARCHAR(255),
+@ProductSymbol as VARCHAR(255),
 @UserId as bigint,
 @ClientId as bigint
 
@@ -20,37 +20,39 @@ BEGIN
 	SET NOCOUNT ON;
 
     IF (-1001 <> @ClientId)
-        SELECT  [TransactionId],
-                CONVERT(VARCHAR(19), [TransactionDate], 126) AS [TransactionDate],
-                [TransactionType],
-                [ProductName],
-                [ProductTypeId],
-                [NoContracts],
-                [ContractPrice],
-                [TransactionFees]
-        
-        FROM [Klondike].[Transactions] AS T 
+        SELECT  [Id],
+                CONVERT(VARCHAR(19), [Date], 126) AS [Date],
+                [OperationId],
+                [ProductCategoryId],
+                [ProductId],
+                [ProductSymbol],
+                [Quantity],
+                [Price],
+                [Fees]
+
+        FROM [Klondike].[TransactionLogs] AS T 
             -- INNER JOIN [Klondike].[ProductTypes] AS PT 
                 -- ON PT.[ProductTypeID] = T.[ProductTypeID]
-            WHERE ((T.[ClientID] = @ClientId) AND
-                (T.[ProductName] = @sProductName))
+            WHERE  ((T.[ClientID] = @ClientId) AND
+                    (T.[ProductSymbol] = @ProductSymbol))
 
-        ORDER BY [TransactionDate] DESC;
+        ORDER BY [Date] DESC;
     ELSE
-        SELECT  [TransactionId],
-                CONVERT(VARCHAR(19), [TransactionDate], 126) AS [TransactionDate],
-                [TransactionType],
-                [ProductName],
-                [ProductTypeId],
-                [NoContracts],
-                [ContractPrice],
-                [TransactionFees]
+        SELECT  [Id],
+                CONVERT(VARCHAR(19), [Date], 126) AS [Date],
+                [OperationId],
+                [ProductCategoryId],
+                [ProductId],
+                [ProductSymbol],
+                [Quantity],
+                [Price],
+                [Fees]
         
-        FROM [Klondike].[Transactions] AS T 
+        FROM [Klondike].[TransactionLogs] AS T 
             -- INNER JOIN [Klondike].[ProductTypes] AS PT 
                 -- ON PT.[ProductTypeID] = T.[ProductTypeID]
-            WHERE (T.[ProductName] = @sProductName)
+            WHERE (T.[ProductSymbol] = @ProductSymbol)
 
-        ORDER BY [TransactionDate] ASC;
+        ORDER BY [Date] ASC;
 END
 GO
