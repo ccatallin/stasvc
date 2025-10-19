@@ -20,7 +20,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "1.0.28";
+        private static string version = "1.0.29";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]
@@ -79,6 +79,11 @@ namespace FalxGroup.Finance.Function
                                 statusCode = 201; // Created
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
                             }
+                            else if (-2 == response.Item1)
+                            {
+                                statusCode = 409; // Conflict
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"A product named '{record.ProductName}' already exists with a different category or type." });
+                            }
                             else
                             {
                                 statusCode = 500;
@@ -94,6 +99,11 @@ namespace FalxGroup.Finance.Function
                             {
                                 statusCode = 200; // OK
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
+                            }
+                            else if (-2 == response.Item1)
+                            {
+                                statusCode = 409; // Conflict
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Updating this transaction for product '{record.ProductName}' would create a conflict with an existing product's category or type." });
                             }
                             else
                             {

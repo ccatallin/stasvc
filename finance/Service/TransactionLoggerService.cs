@@ -54,7 +54,12 @@ public class TransactionLoggerService
 
         var id = Convert.ToString(command.Parameters["@Id"].Value);
         var result = (int)insertedCountParameter.Value;
-        return new Tuple<int, string>(result, id);
+
+        // If the result is 1 (success), return the new ID.
+        // Otherwise (0 for no insert, -2 for validation failure), return a null ID.
+        var returnId = result == 1 ? id : null;
+
+        return new Tuple<int, string>(result, returnId);
     }
 
     public async Task<Tuple<int, string>> UpdateTransactionLog(TransactionLog record)
@@ -93,7 +98,11 @@ public class TransactionLoggerService
         await command.ExecuteNonQueryAsync();
 
         var result = (int)updatedCountParameter.Value;
-        return new Tuple<int, string>(result, record.Id);
+
+        // If the result is 1 (success), return the record's ID.
+        // Otherwise (0 for no update, -2 for validation failure), return a null ID.
+        var returnId = result == 1 ? record.Id : null;
+        return new Tuple<int, string>(result, returnId);
     }
 
     public async Task<Tuple<int, string>> DeleteTransactionLog(TransactionLog record)
