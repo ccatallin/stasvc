@@ -13,14 +13,14 @@ public class TransactionLog
 
     }
 
-    public TransactionLog(string id, DateTime date, int typeId, int productCategoryId, int productId, string productName,
+    public TransactionLog(string id, DateTime date, int operationId, int productCategoryId, int productId, string productName,
         int quantity, decimal price, decimal fees, string notes, long userId, long clientId, long userAccountId, string applicationKey,
-        int getProcessType = 2)
+        int getProcessTypeId = 2)
     {
         this.Id = id;
         
         this.Date = date;
-        this.OperationId = typeId;
+        this.OperationId = operationId;
         this.ProductCategoryId = productCategoryId;
         this.ProductId = productId;
         this.ProductSymbol = productName;
@@ -36,18 +36,22 @@ public class TransactionLog
         this.UserAccountId = userAccountId;
 
         this.ApplicationKey = applicationKey;
-        this.GetProcessTypeId = getProcessType;
+        this.GetProcessTypeId = getProcessTypeId;
     }
 
    [DataMember(Name = "id")]
     public string Id { get; set; }
-    
-    [DataMember(Name = "product_category_id")]
-    public int ProductCategoryId { get; set; }
 
+    [DataMember(Name = "date")]
+    public DateTime Date { get; set; }
+    
     [DataMember(Name = "operation_id")] /* BUY/SELL */
     public int OperationId { get; set; }
+    
 
+    [DataMember(Name = "product_category_id")]
+    public int ProductCategoryId { get; set; }
+    
     [DataMember(Name = "product_id")]
     public int ProductId { get; set; }
 
@@ -62,9 +66,6 @@ public class TransactionLog
 
     [DataMember(Name = "fees")]
     public decimal Fees { get; set; }
-
-    [DataMember(Name = "date")]
-    public DateTime Date { get; set; }
 
     [DataMember(Name = "notes")]
     public string Notes { get; set; }

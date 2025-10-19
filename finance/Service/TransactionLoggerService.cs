@@ -39,10 +39,11 @@ public class TransactionLoggerService
         command.Parameters.AddWithValue("@Quantity", record.Quantity);
         command.Parameters.AddWithValue("@Price", record.Price);
         command.Parameters.AddWithValue("@Fees", record.Fees);
+
+        command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
         
         command.Parameters.AddWithValue("@CreatedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
 
         command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100);
         command.Parameters["@Id"].Direction = System.Data.ParameterDirection.Output;
