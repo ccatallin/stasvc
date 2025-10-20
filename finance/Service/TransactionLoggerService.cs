@@ -161,6 +161,21 @@ public class TransactionLoggerService
 
         return await ReadToJsonAsync(command);
     }
+    
+    public async Task<string> GetOpenPositionTransactionLogs(TransactionLog record)
+    {
+        using SqlConnection connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[getOpenPositionTransactionLogs] @ProductSymbol, @UserId, @ClientId";
+
+        using SqlCommand command = new SqlCommand(sqlQuery, connection);
+        command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol);
+        command.Parameters.AddWithValue("@UserId", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+        return await ReadToJsonAsync(command);
+    }
 
     public async Task<string> GetRealizedProfitAndLoss(TransactionLog record)
     {

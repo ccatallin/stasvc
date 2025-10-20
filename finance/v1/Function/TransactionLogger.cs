@@ -167,7 +167,7 @@ namespace FalxGroup.Finance.Function
                                     break;
                                 }
                                 case 3: // get product transaction logs
-                                {
+                                { // GetOpenPositionTransactionLogs
                                     string jsonProductTransactionLogs = await TransactionLogger.processor.GetProductTransactionLogs(record);
                                     if (jsonProductTransactionLogs.IsNullOrEmpty() || jsonProductTransactionLogs == "[]")
                                     {
@@ -194,6 +194,22 @@ namespace FalxGroup.Finance.Function
                                     {
                                         statusCode = 200; // OK
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonReportData}}}";
+                                    }
+
+                                    break;
+                                }
+                                case 5: // get open position transaction logs
+                                { 
+                                    string jsonOpenPositionTransactionLogs = await TransactionLogger.processor.GetOpenPositionTransactionLogs(record);
+                                    if (jsonOpenPositionTransactionLogs.IsNullOrEmpty() || jsonOpenPositionTransactionLogs == "[]")
+                                    {
+                                        statusCode = 204; // No Content
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    }
+                                    else
+                                    {
+                                        statusCode = 200; // OK
+                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositionTransactionLogs\": {jsonOpenPositionTransactionLogs}}}";
                                     }
 
                                     break;
