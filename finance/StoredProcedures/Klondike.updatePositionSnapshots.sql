@@ -1,3 +1,6 @@
+DROP PROCEDURE [Klondike].[updatePositionSnapshots];
+GO
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -36,11 +39,11 @@ BEGIN
             [Price],
             [Fees] AS TransactionFees,
             IIF([OperationId] = -1, [Quantity], -[Quantity]) AS SignedQuantity,
-            IIF([OperationId] = -1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) + [Fees], 0) AS BuyCost,
+            IIF([OperationId] = -1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) + [Fees], 0) AS BuyCost, -- TODO: Replace magic number 100 with a lookup
             IIF([OperationId] = -1, [Quantity], 0) AS BuyQuantity,
-            IIF([OperationId] = 1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) - [Fees], 0) AS SellValue,
+            IIF([OperationId] = 1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) - [Fees], 0) AS SellValue, -- TODO: Replace magic number 100 with a lookup
             IIF([OperationId] = 1, [Quantity], 0) AS SellQuantity
-        FROM Klondike.TransactionLogs WITH (NOLOCK)
+        FROM Klondike.TransactionLogs -- Removed WITH (NOLOCK) to prevent dirty reads
         WHERE
             ClientId = @ClientId
             AND ProductSymbol = @ProductSymbol
@@ -123,15 +126,19 @@ BEGIN
             SUM(NetCommission) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalCommission -- Commission is still a simple running sum
         FROM DailyState
     ),
-    FinalCalculation AS (
-        -- This CTE makes OpenQuantity available for the IIF statement below.
+    FinalDailyState AS (
+        -- This CTE handles the case where multiple lots are opened and closed on the same day.
+        -- It ensures that only one snapshot is created per day by selecting the final state
+        -- of the day, which corresponds to the highest LotGroupID for that day.
         SELECT
             *,
-            (TotalBuyCost - TotalSellValue) AS Cost,
-            TotalCommission AS Commission
+            ROW_NUMBER() OVER(PARTITION BY SnapshotDate ORDER BY LotGroupID DESC) as rn
         FROM RunningDailyState
     )
+    --
     -- Step 5: Insert the calculated daily snapshots into the summary table.
+    -- The final SELECT now filters to only the last state of each day (rn = 1)
+    -- to prevent duplicate key errors when a position is closed and reopened on the same day.
     INSERT INTO Klondike.PositionSnapshots (
         UserId,
         ClientId,
@@ -152,8 +159,8 @@ BEGIN
         @ProductSymbol,
         SnapshotDate,
         OpenQuantity,
-        Cost,
-        Commission,
+        (TotalBuyCost - TotalSellValue) AS Cost,
+        TotalCommission AS Commission,
         -- Calculate the average price based on whether it's a long or short position
         IIF(
             OpenQuantity = 0, 0, -- Avoid division by zero for closed positions
@@ -162,7 +169,8 @@ BEGIN
                 TotalBuyCost / NULLIF(TotalBuyQuantity, 0),
                 TotalSellValue / NULLIF(TotalSellQuantity, 0))
         ) AS AveragePrice
-    FROM FinalCalculation;
+    FROM FinalDailyState
+    WHERE rn = 1;
 
 END
 GO
