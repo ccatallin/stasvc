@@ -23,6 +23,8 @@ BEGIN
     SET NOCOUNT ON;
     SET @UpdatedCount = 0;
 
+    DECLARE @OldProductSymbol varchar(255);
+
     -- Step 1: Validate product consistency before updating.
     -- Check if another record (with a different Id) exists with the same product name
     -- but has a different Category or Type ID.
@@ -45,6 +47,11 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
+        -- Get the original product symbol before the update.
+        SELECT @OldProductSymbol = [ProductSymbol]
+        FROM [Klondike].[TransactionLogs]
+        WHERE [Id] = @Id AND [ClientId] = @ClientId;
+
         UPDATE [Klondike].[TransactionLogs]
         SET [Date] = @Date, [OperationId] = @OperationId, [ProductCategoryId] = @ProductCategoryId, [ProductId] = @ProductId,
             [ProductSymbol] = @ProductSymbol, [Quantity] = @Quantity, [Price] = @Price, [Fees] = @Fees, [Notes] = @Notes,
@@ -55,7 +62,14 @@ BEGIN
 
         IF @UpdatedCount > 0
         BEGIN
+            -- Recalculate snapshots for the NEW product symbol.
             EXEC [Klondike].[updatePositionSnapshots] @ModifiedById, @ClientId, @ProductSymbol;
+
+            -- If the product symbol was changed, we must also recalculate the OLD one.
+            IF @OldProductSymbol IS NOT NULL AND @OldProductSymbol <> @ProductSymbol
+            BEGIN
+                EXEC [Klondike].[updatePositionSnapshots] @ModifiedById, @ClientId, @OldProductSymbol;
+            END
         END
 
         COMMIT TRANSACTION;
