@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 // --
 using Newtonsoft.Json;
 using FalxGroup.Finance.Model;
+using Microsoft.AspNetCore.Mvc.Formatters;
 
 namespace FalxGroup.Finance.Service
 {
@@ -17,7 +18,7 @@ public class TransactionLoggerService
         this.ConnectionString = connectionString;
     }
 
-    public async Task<Tuple<int, string>> LogTransaction(TransactionLog record)
+    public async Task<Tuple<int, string>> LogTransaction(TransactionLog record, String mode)
     {
         if (record == null || record.IsEmpty)
         {
@@ -26,7 +27,7 @@ public class TransactionLoggerService
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Id OUTPUT, @InsertedCount OUTPUT";
+        var sqlQuery = "EXEC [Klondike].[logTransaction] @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Mode, @Id OUTPUT, @InsertedCount OUTPUT";
 
         using var command = new SqlCommand(sqlQuery, connection);
 
@@ -44,6 +45,7 @@ public class TransactionLoggerService
         
         command.Parameters.AddWithValue("@CreatedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
+        command.Parameters.AddWithValue("@Mode", (mode == "normal") ? 1 : 0);
 
         command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100);
         command.Parameters["@Id"].Direction = System.Data.ParameterDirection.Output;

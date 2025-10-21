@@ -16,6 +16,7 @@ CREATE   PROCEDURE [Klondike].[logTransaction]
     @Notes nvarchar(max), /* varchar(4096) in some versions */
     @CreatedById bigint,
     @ClientId bigint,
+    @Mode smallint, /* 1 = normal, 0 = import */
     @Id varchar(100) OUTPUT,
     @InsertedCount int OUTPUT
 AS
@@ -50,7 +51,7 @@ BEGIN
 
         SET @InsertedCount = @@ROWCOUNT;
 
-        IF @InsertedCount > 0
+        IF ((@InsertedCount > 0) AND (@Mode = 1)) /* Normal mode */
         BEGIN
             EXEC [Klondike].[updatePositionSnapshots] @CreatedById, @ClientId, @ProductSymbol;
         END

@@ -73,7 +73,18 @@ namespace FalxGroup.Finance.Function
                     {
                         case "POST":
                         {
-                            var response = await TransactionLogger.processor.LogTransaction(record);
+                            String postMode = String.Empty;
+                            
+                            try
+                            {
+                                postMode = req.Query["mode"].ToString()?.ToLower() ?? "normal";
+                            }
+                            catch
+                            {
+                                // ignore error and use whatever value was sent
+                            }
+                            
+                            var response = await TransactionLogger.processor.LogTransaction(record, postMode);
 
                             if (1 == response.Item1)
                             {
