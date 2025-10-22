@@ -73,7 +73,7 @@ namespace FalxGroup.Finance.Function
                     {
                         case "POST":
                         {
-                            String postMode = String.Empty;
+                            string postMode = string.Empty;
                             
                             try
                             {
@@ -84,6 +84,7 @@ namespace FalxGroup.Finance.Function
                                 // ignore error and use whatever value was sent
                             }
                             
+                            log.LogTrace($"POST mode: {postMode}");
                             var response = await TransactionLogger.processor.LogTransaction(record, postMode);
 
                             if (1 == response.Item1)
