@@ -18,7 +18,7 @@ public class TransactionLoggerService
         this.ConnectionString = connectionString;
     }
 
-    public async Task<Tuple<int, string>> LogTransaction(TransactionLog record, String mode)
+    public async Task<Tuple<int, string>> LogTransaction(TransactionLog record, string mode)
     {
         if (record == null || record.IsEmpty)
         {
@@ -45,7 +45,7 @@ public class TransactionLoggerService
         
         command.Parameters.AddWithValue("@CreatedById", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@Mode", (mode == "normal") ? 1 : 0);
+        command.Parameters.AddWithValue("@Mode", mode.Equals("import") ? 0 : 1);
 
         command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100);
         command.Parameters["@Id"].Direction = System.Data.ParameterDirection.Output;
@@ -184,7 +184,7 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getProfitAndLossEx] @UserId, @ClientId, @StartDate, @EndDate, @realized";
+        var sqlQuery = "EXEC [Klondike].[getProfitAndLoss] @UserId, @ClientId, @StartDate, @EndDate, @realized";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@UserId", record.UserId);
