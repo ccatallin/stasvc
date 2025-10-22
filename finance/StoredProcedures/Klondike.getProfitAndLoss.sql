@@ -75,25 +75,29 @@ BEGIN
     ),
     LotSummary AS (
         SELECT
-            ProductSymbol,
-            LotGroupID,
-            MIN(TransactionDate) AS FirstTransactionDate,
-            MAX(TransactionDate) AS LastTransactionDate,
-            SUM(SignedQuantity) AS NetQuantity,
-            -- Realized P/L is the sum of all transaction values within the lot
-            SUM(IIF(OperationId = 1, GrossValue, -GrossValue)) - SUM(Fees) AS RealizedPL,
-            SUM(Fees) AS TotalFees
-        FROM LotGroups
-        GROUP BY ProductSymbol, LotGroupID
+            l.ProductSymbol,
+            l.ProductCategoryId,
+            l.ProductId,
+            l.LotGroupID,
+            MIN(l.TransactionDate) AS FirstTransactionDate,
+            MAX(l.TransactionDate) AS LastTransactionDate,
+            SUM(l.SignedQuantity) AS NetQuantity,
+            -- Gross P/L (before fees): Proceeds (SELL=1) - Cost (BUY=-1)
+            SUM(IIF(l.OperationId = 1, l.GrossValue, -l.GrossValue)) AS RealizedPL,
+            SUM(l.Fees) AS TotalFees
+        FROM LotGroups l
+        GROUP BY l.ProductSymbol, l.ProductCategoryId, l.ProductId, l.LotGroupID
     )
     SELECT
         l.ProductSymbol,
+        l.ProductCategoryId,
+        l.ProductId,
         l.FirstTransactionDate,
         l.LastTransactionDate,
         l.NetQuantity AS OpenContracts,
         l.RealizedPL AS Profit,
         l.TotalFees AS Fees,
-        l.RealizedPL AS Total -- Profit already includes fees
+        (l.RealizedPL - l.TotalFees) AS Total -- Net Profit (after fees)
     FROM LotSummary l
     WHERE
         -- Realized lots are those that are now closed (NetQuantity = 0)
@@ -106,7 +110,7 @@ BEGIN
             WHERE s.ProductSymbol = l.ProductSymbol
         ))
     ORDER BY
-        l.LastTransactionDate ASC;
+        l.ProductCategoryId, l.ProductSymbol, l.LastTransactionDate ASC;
 
 END
 GO
