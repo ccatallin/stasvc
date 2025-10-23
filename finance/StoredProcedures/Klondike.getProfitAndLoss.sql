@@ -12,11 +12,14 @@ GO
 --              efficient getProfitAndLoss procedure.
 -- =============================================
 CREATE PROCEDURE [Klondike].[getProfitAndLoss]
-    @UserId AS BIGINT,
-    @ClientId AS BIGINT,
-    @StartDate AS DATETIME = NULL,
-    @EndDate AS DATETIME = NULL,
-    @realized AS SMALLINT = 1 -- 1 for Realized, 0 for Unrealized
+@UserId AS BIGINT,
+@ClientId AS BIGINT,
+@ProductCategoryId AS INT = NULL,
+@ProductId AS INT = NULL,
+@ProductSymbol AS NVARCHAR(255) = NULL,
+@StartDate AS DATETIME = NULL,
+@EndDate AS DATETIME = NULL,
+@realized AS SMALLINT = 1 -- 1 for Realized, 0 for Unrealized
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -39,7 +42,10 @@ BEGIN
             ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) AS GrossValue
         FROM Klondike.TransactionLogs
         WHERE
-            ClientId = @ClientId
+            (ClientId = @ClientId)
+            AND (@ProductCategoryId IS NULL OR [ProductCategoryId] = @ProductCategoryId)
+            AND (@ProductId IS NULL OR [ProductId] = @ProductId)
+            AND (@ProductSymbol IS NULL OR [ProductSymbol] = @ProductSymbol)
             AND (@StartDate IS NULL OR [Date] >= @StartDate)
             AND (@EndDate IS NULL OR [Date] < @EndDate)
             AND [IsDeleted] = 0

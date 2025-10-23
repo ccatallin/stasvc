@@ -36,7 +36,7 @@ public class TransactionLog
         this.UserAccountId = userAccountId;
 
         this.ApplicationKey = applicationKey;
-        this.GetProcessTypeId = getProcessTypeId;
+        this.GetRequestId = getProcessTypeId;
     }
 
    [DataMember(Name = "id")]
@@ -83,8 +83,8 @@ public class TransactionLog
     [DataMember(Name = "application_key")]
     public string ApplicationKey { get; set; }
 
-    [DataMember(Name = "get_process_type_id")]
-    public int GetProcessTypeId { get; set; }
+    [DataMember(Name = "get_request_id")]
+    public int GetRequestId { get; set; }
 
     [DataMember(Name = "start_date")]
     public DateTime? StartDate { get; set; }

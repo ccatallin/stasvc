@@ -12,6 +12,9 @@ CREATE PROCEDURE [Klondike].[getTransactionLogs]
 
 @UserId as bigint,
 @ClientId bigint,
+@ProductCategoryId AS INT = NULL,
+@ProductId AS INT = NULL,
+@ProductSymbol AS NVARCHAR(255) = NULL,
 @StartDate as datetime = NULL,
 @EndDate as datetime = NULL
 
@@ -27,6 +30,9 @@ BEGIN
 	    FROM [Klondike].[TransactionLogs] AS TL 
 		
             WHERE ((TL.[ClientID] = @ClientId) AND
+                   (@ProductCategoryId IS NULL OR TL.[ProductCategoryId] = @ProductCategoryId) AND
+                   (@ProductId IS NULL OR TL.[ProductId] = @ProductId) AND
+                   (@ProductSymbol IS NULL OR TL.[ProductSymbol] = @ProductSymbol) AND
                    (@StartDate IS NULL OR TL.[Date] >= @StartDate) AND
                    (@EndDate IS NULL OR TL.[Date] < @EndDate))
 	

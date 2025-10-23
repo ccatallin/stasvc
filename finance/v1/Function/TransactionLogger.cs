@@ -46,7 +46,7 @@ namespace FalxGroup.Finance.Function
                             ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
                             UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
                             UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
-                            GetProcessTypeId = int.TryParse(req.Query["get_process_type_id"], out var processType) ? processType : 0,
+                            GetRequestId = int.TryParse(req.Query["get_request_id"], out var getRequestId) ? getRequestId : 0,
                             ProductCategoryId = int.TryParse(req.Query["product_category_id"], out var productCategoryId) ? productCategoryId : 0,
                             ProductId = int.TryParse(req.Query["product_id"], out var productId) ? productId : 0,
                             ProductSymbol = req.Query["product_symbol"],
@@ -144,7 +144,7 @@ namespace FalxGroup.Finance.Function
                         }
                         case "GET":
                         {
-                            switch (record.GetProcessTypeId)
+                            switch (record.GetRequestId)
                             {
                                 case 1: // get raw transaction logs
                                 {
