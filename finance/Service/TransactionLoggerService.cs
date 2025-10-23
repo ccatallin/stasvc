@@ -184,14 +184,14 @@ public class TransactionLoggerService
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
 
-        var sqlQuery = "EXEC [Klondike].[getProfitAndLoss] @UserId, @ClientId, @ProductCategoryId, @ProductId, @ProductSymbol, StartDate, @EndDate, @realized";
+        var sqlQuery = "EXEC [Klondike].[getProfitAndLoss] @UserId, @ClientId, @ProductCategoryId, @ProductId, @ProductSymbol, @StartDate, @EndDate, @realized";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);
-        command.Parameters.AddWithValue("@ProductId", record.ProductId);
-        command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol);
+        command.Parameters.AddWithValue("@ProductCategoryId", (0 != record.ProductCategoryId) ? record.ProductCategoryId : DBNull.Value);
+        command.Parameters.AddWithValue("@ProductId", (0 != record.ProductId) ? record.ProductId : DBNull.Value);
+        command.Parameters.AddWithValue("@ProductSymbol", (0 != record.ProductSymbol.Length) ? record.ProductSymbol : DBNull.Value);
         command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
         command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
         command.Parameters.AddWithValue("@realized", 1);
@@ -209,9 +209,9 @@ public class TransactionLoggerService
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);
-        command.Parameters.AddWithValue("@ProductId", record.ProductId);
-        command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol);
+        command.Parameters.AddWithValue("@ProductCategoryId", (0 != record.ProductCategoryId) ? record.ProductCategoryId : DBNull.Value);
+        command.Parameters.AddWithValue("@ProductId", (0 != record.ProductId) ? record.ProductId : DBNull.Value);
+        command.Parameters.AddWithValue("@ProductSymbol", (0 != record.ProductSymbol.Length) ? record.ProductSymbol : DBNull.Value);
         command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
         command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
 

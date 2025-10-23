@@ -12,9 +12,9 @@ CREATE PROCEDURE [Klondike].[getTransactionLogs]
 
 @UserId as bigint,
 @ClientId bigint,
-@ProductCategoryId AS INT = NULL,
-@ProductId AS INT = NULL,
-@ProductSymbol AS NVARCHAR(255) = NULL,
+@ProductCategoryId AS int = NULL,
+@ProductId AS int = NULL,
+@ProductSymbol AS varchar(255) = NULL,
 @StartDate as datetime = NULL,
 @EndDate as datetime = NULL
 
