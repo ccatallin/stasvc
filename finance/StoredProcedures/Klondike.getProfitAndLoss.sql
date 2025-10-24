@@ -38,16 +38,22 @@ BEGIN
             tl.[Price],
             tl.[Fees],
             IIF(tl.[OperationId] = -1, tl.[Quantity], -tl.[Quantity]) AS SignedQuantity,
-            -- Calculate cost basis for buys and proceeds for sells
-            -- The hardcoded multiplier has been replaced by a lookup from the ProductCategories table.
-            (tl.[Quantity] * tl.[Price] * COALESCE(pc.Multiplier, 1)) AS GrossValue
+            -- Calculate cost basis for buys and proceeds for sells.
+            -- For Futures (ProductCategoryId = 3), the value is calculated based on the contract multiplier.
+            -- For other products, it uses the category-specific multiplier (e.g., 100 for options).
+            CASE
+                WHEN tl.ProductCategoryId = 3 THEN (tl.[Quantity] * tl.[Price] * COALESCE(p.ContractMultiplier, 1))
+                ELSE (tl.[Quantity] * tl.[Price] * COALESCE(pc.Multiplier, 1))
+            END AS GrossValue
         FROM Klondike.TransactionLogs AS tl
         LEFT JOIN [Klondike].[ProductCategories] AS pc 
             ON tl.ProductCategoryId = pc.Id
+        LEFT JOIN [Klondike].[Products] AS p
+            ON tl.ProductId = p.Id AND tl.ProductCategoryId = p.ProductCategoryId -- Join on ProductId and CategoryId
         WHERE
             (ClientId = @ClientId)
-            AND (@ProductCategoryId IS NULL OR [ProductCategoryId] = @ProductCategoryId)
-            AND (@ProductId IS NULL OR [ProductId] = @ProductId)
+            AND (@ProductCategoryId IS NULL OR tl.[ProductCategoryId] = @ProductCategoryId)
+            AND (@ProductId IS NULL OR tl.[ProductId] = @ProductId)
             AND (@ProductSymbol IS NULL OR [ProductSymbol] = @ProductSymbol)
             AND (@StartDate IS NULL OR [Date] >= @StartDate)
             AND (@EndDate IS NULL OR [Date] < @EndDate)
