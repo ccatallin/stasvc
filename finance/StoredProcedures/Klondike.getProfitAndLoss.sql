@@ -27,22 +27,23 @@ BEGIN
     SET NOCOUNT ON;
 
     WITH OrderedTrades AS (
-        SELECT
-            [Date] AS TransactionDate,
-            [Id] AS TransactionId,
-            [OperationId],
-            [ProductCategoryId],
-            [ProductId],
-            [ProductSymbol],
-            [Quantity],
-            [Price],
-            [Fees],
-            IIF([OperationId] = -1, [Quantity], -[Quantity]) AS SignedQuantity,
+        SELECT -- Added a LEFT JOIN to ProductCategories to get the multiplier dynamically
+            tl.[Date] AS TransactionDate,
+            tl.[Id] AS TransactionId,
+            tl.[OperationId],
+            tl.[ProductCategoryId],
+            tl.[ProductId],
+            tl.[ProductSymbol],
+            tl.[Quantity],
+            tl.[Price],
+            tl.[Fees],
+            IIF(tl.[OperationId] = -1, tl.[Quantity], -tl.[Quantity]) AS SignedQuantity,
             -- Calculate cost basis for buys and proceeds for sells
-            -- Note: This assumes a simple multiplier for stocks/ETFs vs. other instruments.
-            -- A product-specific multiplier would be more robust.
-            ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) AS GrossValue
-        FROM Klondike.TransactionLogs
+            -- The hardcoded multiplier has been replaced by a lookup from the ProductCategories table.
+            (tl.[Quantity] * tl.[Price] * COALESCE(pc.Multiplier, 1)) AS GrossValue
+        FROM Klondike.TransactionLogs AS tl
+        LEFT JOIN [Klondike].[ProductCategories] AS pc 
+            ON tl.ProductCategoryId = pc.Id
         WHERE
             (ClientId = @ClientId)
             AND (@ProductCategoryId IS NULL OR [ProductCategoryId] = @ProductCategoryId)
