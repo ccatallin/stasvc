@@ -23,30 +23,35 @@ BEGIN
 
     WITH LatestSnapshots AS (
         -- 1. Find the most recent snapshot for each product for the user.
-        SELECT  [ProductCategoryId],
-                [ProductId],
-                [ProductSymbol],
-                [Quantity],
-                [Cost],
-                [Commission],
-                [AveragePrice],
+        SELECT  ps.[ProductCategoryId],
+                ps.[ProductId],
+                ps.[ProductSymbol],
+                ps.[Quantity],
+                ps.[Cost],
+                ps.[Commission],
+                ps.[AveragePrice],
+                ISNULL(pc.Multiplier, 1) AS Multiplier,
                 -- We need to get some details from the first transaction of the lot,
                 -- which requires joining back to the transaction table.
                 -- This is a small lookup and still very fast.
-                ROW_NUMBER() OVER(PARTITION BY ProductSymbol ORDER BY SnapshotDate DESC) as rn
+                ROW_NUMBER() OVER(PARTITION BY ps.ProductSymbol ORDER BY ps.SnapshotDate DESC) as rn
 
-            FROM [Klondike].[PositionSnapshots] WITH (NOLOCK)
-                WHERE ([ClientId] = @ClientId)
+            FROM [Klondike].[PositionSnapshots] AS ps WITH (NOLOCK)
+            LEFT JOIN [Klondike].[ProductCategories] AS pc
+                ON ps.ProductCategoryId = pc.Id
+            WHERE (ps.[ClientId] = @ClientId)
     )
     -- 2. Select the latest snapshots that have a non-zero quantity.
     SELECT  [ProductCategoryId],
             [ProductId],
             [ProductSymbol],
             [Quantity],
-            [AveragePrice],
+            -- For products with a multiplier (like options), the stored AveragePrice is per contract.
+            -- We divide by the multiplier to get the per-unit/per-share price for display.
+            IIF(Multiplier > 1, [AveragePrice] / Multiplier, [AveragePrice]) AS [AveragePrice],
             [Cost],
             [Commission],
-            (Cost + Commission) AS TotalCost
+            ([Cost] + [Commission]) AS TotalCost
 
         FROM LatestSnapshots
             WHERE   ((rn = 1) AND 

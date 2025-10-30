@@ -29,24 +29,26 @@ BEGIN
     -- Step 2: Use the full recalculation logic to generate the history of lots and daily states.
     WITH OrderedTrades AS (
         SELECT
-            [Date] AS TransactionDate,
-            [Id] AS TransactionId,
-            [OperationId] AS TransactionType,
-            [ProductCategoryId],
-            [ProductId],
-            [ProductSymbol],
-            [Quantity],
-            [Price],
-            [Fees] AS TransactionFees,
-            IIF([OperationId] = -1, [Quantity], -[Quantity]) AS SignedQuantity,
-            IIF([OperationId] = -1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) + [Fees], 0) AS BuyCost, -- TODO: Replace magic number 100 with a lookup
-            IIF([OperationId] = -1, [Quantity], 0) AS BuyQuantity,
-            IIF([OperationId] = 1, ([Quantity] * [Price] * IIF([ProductCategoryId] = 2, 100, 1)) - [Fees], 0) AS SellValue, -- TODO: Replace magic number 100 with a lookup
-            IIF([OperationId] = 1, [Quantity], 0) AS SellQuantity
-        FROM Klondike.TransactionLogs -- Removed WITH (NOLOCK) to prevent dirty reads
+            tl.[Date] AS TransactionDate,
+            tl.[Id] AS TransactionId,
+            tl.[OperationId] AS TransactionType,
+            tl.[ProductCategoryId],
+            tl.[ProductId],
+            tl.[ProductSymbol],
+            tl.[Quantity],
+            tl.[Price],
+            tl.[Fees] AS TransactionFees,
+            IIF(tl.[OperationId] = -1, tl.[Quantity], -tl.[Quantity]) AS SignedQuantity,
+            IIF(tl.[OperationId] = -1, (tl.[Quantity] * tl.[Price] * ISNULL(pc.Multiplier, 1)) + tl.[Fees], 0) AS BuyCost,
+            IIF(tl.[OperationId] = -1, tl.[Quantity], 0) AS BuyQuantity,
+            IIF(tl.[OperationId] = 1, (tl.[Quantity] * tl.[Price] * ISNULL(pc.Multiplier, 1)) - tl.[Fees], 0) AS SellValue,
+            IIF(tl.[OperationId] = 1, tl.[Quantity], 0) AS SellQuantity
+        FROM Klondike.TransactionLogs AS tl
+        LEFT JOIN Klondike.ProductCategories AS pc
+            ON tl.ProductCategoryId = pc.Id
         WHERE
-            ClientId = @ClientId
-            AND ProductSymbol = @ProductSymbol
+            tl.ClientId = @ClientId
+            AND tl.ProductSymbol = @ProductSymbol
     ),
     RunningTotals AS (
         SELECT
