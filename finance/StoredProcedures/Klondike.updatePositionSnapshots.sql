@@ -3,8 +3,8 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 -- =============================================
--- Author:      Catalin Calugaroiu
--- Create date: 2025-10-09
+-- Author:      Catalin Calugaroiu & Gemini Code Assist
+-- Create date: 2025-10-16
 -- Description: Recalculates and updates the daily snapshots for a specific product.
 --              This is the "heavy" part of the calculation, intended to be
 --              run when a transaction is created, updated, or deleted.
@@ -24,7 +24,7 @@ BEGIN
         ClientId = @ClientId
         AND ProductSymbol = @ProductSymbol;
 
-    -- Step 2: Use the full recalculation logic to generate the history of lots and daily states.
+    -- Step 2: Use a simplified recalculation logic to generate the history of lots and per-transaction states.
     WITH OrderedTrades AS (
         SELECT
             tl.[Date] AS TransactionDate,
@@ -105,94 +105,48 @@ BEGIN
                 ORDER BY TransactionDate, TransactionId
             ) AS LotGroupID
         FROM LotIdentifier
-    ),
-    DailyState AS (
+    ), PerTransactionState AS (
+        -- Step 3a: Calculate the cumulative state of the position *after* each transaction within its lot.
         SELECT
-            CAST(TransactionDate AS DATE) AS SnapshotDate,
-            LotGroupID,
-            MAX(ProductCategoryId) AS ProductCategoryId,
-            MAX(ProductId) AS ProductId,
-            SUM(SignedQuantity) AS NetQuantityChange,
-            SUM(BuyGrossValue) AS NetBuyGrossValue, -- Daily total
-            SUM(BuyValue) AS NetBuyValue,
-            SUM(BuyCost) AS NetBuyCost, -- Daily total
-            SUM(BuyQuantity) AS NetBuyQuantity, -- Daily total
-            SUM(SellProceeds) AS NetSellProceeds, -- Daily total
-            SUM(SellValue) AS NetSellValue,
-            SUM(SellGrossValue) AS NetSellGrossValue, -- Daily total
-            SUM(SellQuantity) AS NetSellQuantity, -- Daily total
-            SUM(TransactionFees) AS NetCommission
-        FROM LotGroups -- Reverting to use LotGroups directly
-        GROUP BY CAST(TransactionDate AS DATE), LotGroupID
-    ),
-    RunningDailyState AS (
-        SELECT
-            SnapshotDate,
-            LotGroupID,
-            ProductCategoryId,
-            ProductId,
-            SUM(NetQuantityChange) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS OpenQuantity,
-            SUM(NetBuyGrossValue) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalBuyGrossValue, -- Cumulative per lot
-            SUM(NetBuyValue) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalBuyValue,
-            SUM(NetBuyCost) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalBuyCost, -- Cumulative per lot
-            SUM(NetBuyQuantity) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalBuyQuantity, -- Cumulative per lot
-            SUM(NetSellProceeds) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalSellProceeds, -- Cumulative per lot
-            SUM(NetSellGrossValue) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalSellGrossValue, -- Cumulative per lot
-            SUM(NetSellValue) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalSellValue,
-            SUM(NetSellQuantity) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalSellQuantity, -- Cumulative per lot
-            SUM(NetCommission) OVER (PARTITION BY LotGroupID ORDER BY SnapshotDate) AS TotalCommission
-        FROM DailyState
-    ),
-    FinalDailyState AS (
-        -- This CTE handles the case where multiple lots are opened and closed on the same day.
-        -- It ensures that only one snapshot is created per day by selecting the final state
-        -- of the day, which corresponds to the highest LotGroupID for that day.
-        SELECT
-            *,
-            ROW_NUMBER() OVER(PARTITION BY SnapshotDate ORDER BY LotGroupID DESC) as rn
-        FROM RunningDailyState
-    )
-    -- Step 3: Materialize the final daily states into a temporary table.
-    -- This can improve performance by preventing re-calculation and providing better statistics to the optimizer.
-    SELECT
-        ProductCategoryId,
-        LotGroupID,
-        ProductId,
-        SnapshotDate,
-        OpenQuantity,
-        TotalBuyGrossValue,
-        TotalBuyValue,
-        TotalBuyCost,
-        TotalBuyQuantity,
-        TotalSellProceeds,
-        TotalSellValue,
-        TotalSellGrossValue,
-        TotalSellQuantity,
-        TotalCommission
-    INTO #FinalSnapshots
-    FROM FinalDailyState
-    WHERE rn = 1;
-
-    -- Step 3.5: Calculate the final AveragePrice and Cost in a new CTE
-    -- This makes the logic clearer by separating the calculation from the final insert.
-    WITH FinalSnapshotsWithAvgPrice AS (
-        SELECT fs.*,
+            lg.ProductCategoryId,
+            lg.ProductId,
+            lg.LotGroupID,
+            CAST(lg.TransactionDate AS DATE) AS SnapshotDate,
+            lg.TransactionDate,
+            lg.TransactionId,
             ISNULL(pc.Multiplier, 1) AS Multiplier,
-            -- Correctly calculate Average Price based on position direction (long or short).
-            -- We wrap the entire calculation in ISNULL(..., 0) to handle the case where a position is closed (OpenQuantity = 0),
-            -- which would otherwise result in a NULL AveragePrice.
+            SUM(lg.SignedQuantity) OVER (PARTITION BY lg.LotGroupID ORDER BY lg.TransactionDate, lg.TransactionId) AS OpenQuantity,
+            SUM(lg.BuyValue) OVER (PARTITION BY lg.LotGroupID ORDER BY lg.TransactionDate, lg.TransactionId) AS TotalBuyValue,
+            SUM(lg.BuyQuantity) OVER (PARTITION BY lg.LotGroupID ORDER BY lg.TransactionDate, lg.TransactionId) AS TotalBuyQuantity,
+            SUM(lg.SellValue) OVER (PARTITION BY lg.LotGroupID ORDER BY lg.TransactionDate, lg.TransactionId) AS TotalSellValue,
+            SUM(lg.SellQuantity) OVER (PARTITION BY lg.LotGroupID ORDER BY lg.TransactionDate, lg.TransactionId) AS TotalSellQuantity,
+            SUM(lg.TransactionFees) OVER (PARTITION BY lg.LotGroupID ORDER BY lg.TransactionDate, lg.TransactionId) AS TotalCommission
+        FROM LotGroups lg
+        LEFT JOIN Klondike.ProductCategories AS pc ON lg.ProductCategoryId = pc.Id
+    ),
+    DailySnapshots AS (
+        -- Step 3b: For each day, select the state from the *last* transaction of that day.
+        SELECT
+            pts.ProductCategoryId,
+            pts.ProductId,
+            pts.SnapshotDate,
+            pts.OpenQuantity,
+            pts.TotalCommission,
+            pts.Multiplier,
+            -- Calculate the average price based on the position's state at the end of the day.
             ISNULL(
                 IIF(
-                    fs.OpenQuantity > 0,
-                    fs.TotalBuyValue / NULLIF(fs.TotalBuyQuantity, 0), -- Running average for longs
-                    -- For shorts or flat positions, use the fixed average price from the start of the short lot.
-                    FIRST_VALUE(fs.TotalSellValue / NULLIF(fs.TotalSellQuantity, 0)) OVER (PARTITION BY fs.LotGroupID ORDER BY fs.SnapshotDate)
+                    pts.OpenQuantity > 0,
+                    pts.TotalBuyValue / NULLIF(pts.TotalBuyQuantity, 0), -- Avg price for long positions
+                    -- For short positions, use the avg price from the first sell(s) of the lot.
+                    FIRST_VALUE(pts.TotalSellValue / NULLIF(pts.TotalSellQuantity, 0)) OVER (PARTITION BY pts.LotGroupID ORDER BY pts.SnapshotDate)
                 ), 0
-            ) AS CalculatedAveragePrice
-        FROM #FinalSnapshots AS fs
-        LEFT JOIN Klondike.ProductCategories AS pc ON fs.ProductCategoryId = pc.Id
+            ) AS AveragePrice,
+            -- This identifies the last record for each day to ensure we only insert one snapshot per day.
+            ROW_NUMBER() OVER(PARTITION BY pts.SnapshotDate ORDER BY pts.TransactionDate DESC, pts.TransactionId DESC) as rn
+        FROM PerTransactionState pts
     )
-    -- Step 4: Insert the calculated daily snapshots from the temporary table into the summary table.
+    -- Step 3: Insert the calculated daily snapshots into the summary table.
     -- This separation makes the logic clearer and can be more performant.
     -- The logic correctly handles:
     --   - Cost basis for long and short positions.
@@ -211,25 +165,21 @@ BEGIN
         Commission,
         AveragePrice
     )
+    -- Step 3c: Final SELECT and INSERT into the snapshot table.
     SELECT
         @UserId,
         @ClientId,
-        ProductCategoryId,
-        ProductId,
+        ds.ProductCategoryId,
+        ds.ProductId,
         @ProductSymbol,
-        SnapshotDate,
-        OpenQuantity,
-        -- Cost is now correctly calculated from the per-unit AveragePrice and Multiplier.
-        -- For ZB futures (ProductId=5), the AveragePrice is already the full dollar value, so we don't use the multiplier.
-        IIF(OpenQuantity = 0, 0, 
-            IIF(ProductCategoryId = 3 AND ProductId = 5,
-                OpenQuantity * CalculatedAveragePrice, -- ZB Cost
-                OpenQuantity * CalculatedAveragePrice * Multiplier -- Cost for all other products
-            )
-        ) AS Cost,
-        TotalCommission AS Commission,
-        CalculatedAveragePrice AS AveragePrice
-    FROM FinalSnapshotsWithAvgPrice;
+        ds.SnapshotDate,
+        ds.OpenQuantity,
+        -- Cost is calculated from the final state: OpenQuantity * AveragePrice * Multiplier
+        IIF(ds.OpenQuantity = 0, 0, ds.OpenQuantity * ds.AveragePrice * IIF(ds.ProductId = 5 AND ds.ProductCategoryId = 3, 1, ds.Multiplier)) AS Cost,
+        ds.TotalCommission,
+        ds.AveragePrice
+    FROM DailySnapshots ds
+    WHERE ds.rn = 1; -- Insert only the last state for each day.
 
 END
 GO

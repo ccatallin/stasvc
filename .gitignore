@@ -261,6 +261,9 @@ paket-files/
 
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
+
+# Ignore all files and directories with double underscores in their name
+*__*
 *.pyc
 
 .DS_Store

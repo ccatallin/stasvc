@@ -3,22 +3,26 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
--- Creates or alters the logTransaction stored procedure with validation logic.
-CREATE   PROCEDURE [Klondike].[logTransaction]
-    @Date datetime,
-    @OperationId int, /* BUY/SELL */
-    @ProductCategoryId int,
-    @ProductId int,
-    @ProductSymbol varchar(255),
-    @Quantity int,
-    @Price decimal(18, 5),
-    @Fees decimal(18, 5),
-    @Notes nvarchar(max), /* varchar(4096) in some versions */
-    @CreatedById bigint,
-    @ClientId bigint,
-    @Mode smallint, /* 1 = normal, 0 = import */
-    @Id varchar(100) OUTPUT,
-    @InsertedCount int OUTPUT
+-- Author:      Catalin Calugaroiu & Gemini Code Assist
+-- Create date: 2025-10-17
+-- Description: Inserts a transaction. Snapshot recalculation is handled by the application layer.
+CREATE OR ALTER  PROCEDURE [Klondike].[logTransactionNew]
+
+@Date datetime,
+@OperationId int, /* BUY/SELL */
+@ProductCategoryId int,
+@ProductId int,
+@ProductSymbol varchar(255),
+@Quantity int,
+@Price decimal(18, 5),
+@Fees decimal(18, 5),
+@Notes nvarchar(max), /* varchar(4096) in some versions */
+@CreatedById bigint,
+@ClientId bigint,
+@Mode smallint, /* 1 = normal, 0 = import */
+@Id varchar(100) OUTPUT,
+@InsertedCount int OUTPUT
+
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -41,27 +45,14 @@ BEGIN
     END
 
     -- Step 2: If validation passes, proceed with the transaction.
-    BEGIN TRY
-        BEGIN TRANSACTION;
+    -- The C# service layer now handles transactions and snapshot updates.
+    -- This procedure is simplified to only perform the insert.
 
-        SELECT @Id = NEWID();
-    
-        INSERT INTO [Klondike].[TransactionLogs] ([Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [Notes], [CreatedById], [ClientId])  
-        VALUES (@Id, @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId);
+    SELECT @Id = NEWID();
 
-        SET @InsertedCount = @@ROWCOUNT;
+    INSERT INTO [Klondike].[TransactionLogs] ([Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [Notes], [CreatedById], [ClientId])  
+    VALUES (@Id, @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId);
 
-        IF ((@InsertedCount > 0) AND (@Mode = 1)) /* Normal mode */
-        BEGIN
-            EXEC [Klondike].[updatePositionSnapshots] @CreatedById, @ClientId, @ProductSymbol;
-        END
-        
-        COMMIT TRANSACTION;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW; -- Re-throw the original error to the client
-    END CATCH
+    SET @InsertedCount = @@ROWCOUNT;
 END
 GO

@@ -92,6 +92,12 @@ public class TransactionLog
     [DataMember(Name = "end_date")]
     public DateTime? EndDate { get; set; }
 
+    // These properties are not mapped to the DB table directly.
+    // They should be populated by the data access layer by joining with
+    // the Products and ProductCategories tables before being passed to the calculator.
+    public decimal ContractMultiplier { get; set; } = 1;
+    public decimal CategoryMultiplier { get; set; } = 1;
+
     public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductSymbol) || (0 == this.Quantity);
 } /* end class TransactionLog */
 

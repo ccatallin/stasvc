@@ -3,27 +3,29 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
--- Creates or alters the updateTransactionLog stored procedure with validation logic.
-CREATE   PROCEDURE [Klondike].[updateTransactionLog]
-    @Id varchar(100),
-    @Date datetime,
-    @OperationId int,
-    @ProductCategoryId int,
-    @ProductId int,
-    @ProductSymbol varchar(255),
-    @Quantity int,
-    @Price decimal(18, 5),
-    @Fees decimal(18, 5),
-    @Notes varchar(max),
-    @ModifiedById bigint,
-    @ClientId bigint,
-    @UpdatedCount int OUTPUT
+-- Author:      Catalin Calugaroiu & Gemini Code Assist
+-- Create date: 2025-10-17
+-- Description: Updates a transaction. Snapshot recalculation is handled by the application layer.
+CREATE OR ALTER  PROCEDURE [Klondike].[updateTransactionLogNew]
+
+@Id varchar(100),
+@Date datetime,
+@OperationId int,
+@ProductCategoryId int,
+@ProductId int,
+@ProductSymbol varchar(255),
+@Quantity int,
+@Price decimal(18, 5),
+@Fees decimal(18, 5),
+@Notes varchar(max),
+@ModifiedById bigint,
+@ClientId bigint,
+@UpdatedCount int OUTPUT
+
 AS
 BEGIN
     SET NOCOUNT ON;
     SET @UpdatedCount = 0;
-
-    DECLARE @OldProductSymbol varchar(255);
 
     -- Step 1: Validate product consistency before updating.
     -- Check if another record (with a different Id) exists with the same product name
@@ -44,40 +46,14 @@ BEGIN
     END
 
     -- Step 2: If validation passes, proceed with the transaction.
-    BEGIN TRY
-        BEGIN TRANSACTION;
+    -- The C# service layer now handles transactions and snapshot updates.
+    -- This procedure is simplified to only perform the update.
+    UPDATE [Klondike].[TransactionLogs]
+    SET [Date] = @Date, [OperationId] = @OperationId, [ProductCategoryId] = @ProductCategoryId, [ProductId] = @ProductId,
+        [ProductSymbol] = @ProductSymbol, [Quantity] = @Quantity, [Price] = @Price, [Fees] = @Fees, [Notes] = @Notes,
+        [ModifiedById] = @ModifiedById, [Modified] = GETUTCDATE()
+    WHERE [Id] = @Id AND [ClientId] = @ClientId;
 
-        -- Get the original product symbol before the update.
-        SELECT @OldProductSymbol = [ProductSymbol]
-        FROM [Klondike].[TransactionLogs]
-        WHERE [Id] = @Id AND [ClientId] = @ClientId;
-
-        UPDATE [Klondike].[TransactionLogs]
-        SET [Date] = @Date, [OperationId] = @OperationId, [ProductCategoryId] = @ProductCategoryId, [ProductId] = @ProductId,
-            [ProductSymbol] = @ProductSymbol, [Quantity] = @Quantity, [Price] = @Price, [Fees] = @Fees, [Notes] = @Notes,
-            [ModifiedById] = @ModifiedById, [Modified] = GETUTCDATE()
-        WHERE [Id] = @Id AND [ClientId] = @ClientId;
-
-        SET @UpdatedCount = @@ROWCOUNT;
-
-        IF @UpdatedCount > 0
-        BEGIN
-            -- Recalculate snapshots for the NEW product symbol.
-            EXEC [Klondike].[updatePositionSnapshots] @ModifiedById, @ClientId, @ProductSymbol;
-
-            -- If the product symbol was changed, we must also recalculate the OLD one.
-            IF @OldProductSymbol IS NOT NULL AND @OldProductSymbol <> @ProductSymbol
-            BEGIN
-                EXEC [Klondike].[updatePositionSnapshots] @ModifiedById, @ClientId, @OldProductSymbol;
-            END
-        END
-
-        COMMIT TRANSACTION;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        THROW;
-    END CATCH
+    SET @UpdatedCount = @@ROWCOUNT;
 END
 GO
