@@ -7,7 +7,7 @@ GO
 -- Create date: 2025-10-08 20:21:34 PM
 -- Description:	Get open positions
 -- =============================================
-CREATE PROCEDURE [Klondike].[getOpenPositions]
+CREATE OR ALTER PROCEDURE [Klondike].[getOpenPositions]
 
 @UserId as bigint,
 @ClientId as bigint
@@ -48,7 +48,8 @@ BEGIN
             [Quantity],
             -- For products with a multiplier (like options), the stored AveragePrice is per contract.
             -- We divide by the multiplier to get the per-unit/per-share price for display.
-            IIF(Multiplier > 1, [AveragePrice] / Multiplier, [AveragePrice]) AS [AveragePrice],
+            -- IIF(Multiplier > 1, [AveragePrice] / Multiplier, [AveragePrice]) AS [AveragePrice],
+            [AveragePrice], -- we don't divide by Multiplier since the [AveragePrice] is the priced payed for the contract
             [Cost],
             [Commission],
             ([Cost] + [Commission]) AS TotalCost
