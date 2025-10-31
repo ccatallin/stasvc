@@ -9,6 +9,7 @@ using FalxGroup.Finance.Service;
 using System.Text;
 using Newtonsoft.Json.Linq;
 
+#if DEBUG
 namespace FalxGroup.Finance.Function
 {
     public static class Validation
@@ -79,3 +80,4 @@ namespace FalxGroup.Finance.Function
         }
     }
 }
+#endif
