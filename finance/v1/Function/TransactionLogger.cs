@@ -42,6 +42,7 @@ namespace FalxGroup.Finance.Function
                     {
                         record = new TransactionLog
                         {
+                            Id = req.Query["id"],
                             ApplicationKey = req.Query["application_key"],
                             ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
                             UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
