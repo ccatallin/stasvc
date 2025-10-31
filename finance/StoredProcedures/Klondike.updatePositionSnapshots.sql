@@ -147,6 +147,7 @@ BEGIN
     -- This can improve performance by preventing re-calculation and providing better statistics to the optimizer.
     SELECT
         ProductCategoryId,
+        LotGroupID,
         ProductId,
         SnapshotDate,
         OpenQuantity,
@@ -168,15 +169,20 @@ BEGIN
     WITH FinalSnapshotsWithAvgPrice AS (
         SELECT fs.*,
             ISNULL(pc.Multiplier, 1) AS Multiplier,
-            IIF(
-                OpenQuantity = 0, 0,
+            -- Correctly calculate Average Price based on position direction (long or short).
+            -- We wrap the entire calculation in ISNULL(..., 0) to handle the case where a position is closed (OpenQuantity = 0),
+            -- which would otherwise result in a NULL AveragePrice.
+            ISNULL(
                 IIF(
-                    OpenQuantity > 0, TotalBuyValue / NULLIF(TotalBuyQuantity, 0), -- Avg Price for Longs (per unit)
-                    TotalSellValue / NULLIF(TotalSellQuantity, 0)  -- Avg Price for Shorts (per unit)
-                )
+                    fs.OpenQuantity > 0,
+                    fs.TotalBuyValue / NULLIF(fs.TotalBuyQuantity, 0), -- Running average for longs
+                    -- For shorts or flat positions, use the fixed average price from the start of the short lot.
+                    FIRST_VALUE(fs.TotalSellValue / NULLIF(fs.TotalSellQuantity, 0)) OVER (PARTITION BY fs.LotGroupID ORDER BY fs.SnapshotDate)
+                ), 0
             ) AS CalculatedAveragePrice
-        FROM #FinalSnapshots fs
-        LEFT JOIN Klondike.ProductCategories pc ON fs.ProductCategoryId = pc.Id)
+        FROM #FinalSnapshots AS fs
+        LEFT JOIN Klondike.ProductCategories AS pc ON fs.ProductCategoryId = pc.Id
+    )
     -- Step 4: Insert the calculated daily snapshots from the temporary table into the summary table.
     -- This separation makes the logic clearer and can be more performant.
     -- The logic correctly handles:
@@ -205,7 +211,7 @@ BEGIN
         SnapshotDate,
         OpenQuantity,
         -- Cost is now correctly calculated from the per-unit AveragePrice and Multiplier.
-        (OpenQuantity * CalculatedAveragePrice * Multiplier) AS Cost,
+        IIF(OpenQuantity = 0, 0, OpenQuantity * CalculatedAveragePrice * Multiplier) AS Cost,
         TotalCommission AS Commission,
         CalculatedAveragePrice AS AveragePrice
     FROM FinalSnapshotsWithAvgPrice;
