@@ -11,7 +11,7 @@ GO
 --              accurate and performant. It replaces the older, less
 --              efficient getProfitAndLoss procedure.
 -- =============================================
-CREATE PROCEDURE [Klondike].[getProfitAndLoss]
+CREATE OR ALTER PROCEDURE [Klondike].[getProfitAndLoss]
 
 @UserId AS bigint,
 @ClientId AS bigint,
@@ -39,9 +39,13 @@ BEGIN
             tl.[Fees],
             IIF(tl.[OperationId] = -1, tl.[Quantity], -tl.[Quantity]) AS SignedQuantity,
             -- Calculate cost basis for buys and proceeds for sells.
-            -- For Futures (ProductCategoryId = 3), the value is calculated based on the contract multiplier.
-            -- For other products, it uses the category-specific multiplier (e.g., 100 for options).
+            -- This CASE statement correctly calculates the gross value for all products,
+            -- including the special price conversion for ZB futures (ProductId=5).
             CASE
+                -- For ZB futures, convert the fractional price (e.g., 117.18) to its full dollar value.
+                WHEN tl.ProductCategoryId = 3 AND tl.ProductId = 5 THEN
+                    tl.Quantity * ((FLOOR(tl.Price) + (tl.Price - FLOOR(tl.Price)) * 100 / 32) * 1000)
+                -- For other futures, use the standard contract multiplier.
                 WHEN tl.ProductCategoryId = 3 THEN (tl.[Quantity] * tl.[Price] * COALESCE(p.ContractMultiplier, 1))
                 ELSE (tl.[Quantity] * tl.[Price] * COALESCE(pc.Multiplier, 1))
             END AS GrossValue

@@ -43,6 +43,15 @@ BEGIN
                 WHEN tl.ProductCategoryId = 3 AND p.ContractMultiplier IS NOT NULL THEN tl.Quantity * tl.Price * p.ContractMultiplier -- Futures
                 ELSE tl.Quantity * tl.Price * ISNULL(pc.Multiplier, 1) -- Options/Equities
             END AS GrossValue
+            ,
+            -- Calculate the per-unit value, applying special logic for ZB futures (ProductId=5).
+            -- For ZB, the price (e.g., 117.18) is converted from points and 32nds to a full dollar value.
+            -- For all other products, it's simply the price.
+            CASE
+                WHEN tl.ProductCategoryId = 3 AND tl.ProductId = 5 THEN
+                    (FLOOR(tl.Price) + (tl.Price - FLOOR(tl.Price)) * 100 / 32) * 1000
+                ELSE tl.Price
+            END AS UnitValue
         FROM Klondike.TransactionLogs AS tl
         LEFT JOIN Klondike.ProductCategories AS pc
             ON tl.ProductCategoryId = pc.Id
@@ -57,11 +66,11 @@ BEGIN
             *,
             -- Calculate cost/value fields for the current transaction
             IIF(TransactionType = -1, GrossValue, 0) AS BuyGrossValue, -- Gross value of buys (for avg price)
-            IIF(TransactionType = -1, Quantity * Price, 0) AS BuyValue, -- Value without multiplier (for per-unit avg price)
+            IIF(TransactionType = -1, Quantity * UnitValue, 0) AS BuyValue, -- Value based on UnitValue (for per-unit avg price)
             IIF(TransactionType = -1, GrossValue + TransactionFees, 0) AS BuyCost, -- Total cost of buys (incl. fees), used for P/L
             IIF(TransactionType = -1, Quantity, 0) AS BuyQuantity,
             IIF(TransactionType = 1, GrossValue, 0) AS SellGrossValue, -- Gross value of sells (for avg price)
-            IIF(TransactionType = 1, Quantity * Price, 0) AS SellValue, -- Value without multiplier (for per-unit avg price)
+            IIF(TransactionType = 1, Quantity * UnitValue, 0) AS SellValue, -- Value based on UnitValue (for per-unit avg price)
             IIF(TransactionType = 1, GrossValue - TransactionFees, 0) AS SellProceeds, -- Net proceeds from sells (after fees), used for P/L
             IIF(TransactionType = 1, Quantity, 0) AS SellQuantity,
             -- Running quantity is used to determine the start of a new lot.
@@ -211,7 +220,13 @@ BEGIN
         SnapshotDate,
         OpenQuantity,
         -- Cost is now correctly calculated from the per-unit AveragePrice and Multiplier.
-        IIF(OpenQuantity = 0, 0, OpenQuantity * CalculatedAveragePrice * Multiplier) AS Cost,
+        -- For ZB futures (ProductId=5), the AveragePrice is already the full dollar value, so we don't use the multiplier.
+        IIF(OpenQuantity = 0, 0, 
+            IIF(ProductCategoryId = 3 AND ProductId = 5,
+                OpenQuantity * CalculatedAveragePrice, -- ZB Cost
+                OpenQuantity * CalculatedAveragePrice * Multiplier -- Cost for all other products
+            )
+        ) AS Cost,
         TotalCommission AS Commission,
         CalculatedAveragePrice AS AveragePrice
     FROM FinalSnapshotsWithAvgPrice;
