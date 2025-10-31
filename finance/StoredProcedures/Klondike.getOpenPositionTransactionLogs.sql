@@ -9,7 +9,7 @@ GO
 --              open position for a given product and client. It returns
 --              only the transactions since the position was last opened.
 -- =============================================
-CREATE PROCEDURE [Klondike].[getOpenPositionTransactionLogs]
+CREATE OR ALTER PROCEDURE [Klondike].[getOpenPositionTransactionLogs]
 
 @ProductSymbol AS VARCHAR(255),
 @UserId AS BIGINT,
@@ -59,11 +59,17 @@ BEGIN
         -- Step 4: Assign a unique, incrementing ID to each lot.
         SELECT *, SUM(IsNewLot) OVER (PARTITION BY ProductSymbol, ClientId ORDER BY [Date], Id) AS LotGroupID
         FROM LotIdentifier
+    ),
+    FinalLots AS (
+        -- Step 5: Identify the latest LotGroupID for each client.
+        SELECT *, MAX(LotGroupID) OVER (PARTITION BY ClientId) AS MaxLotGroupID
+        FROM LotGroups
     )
-    -- Step 5: Select all transactions from the most recent lot.
+    -- Step 6: Select all transactions from the most recent lot for each client.
+    -- This correctly handles both the single-client and the admin (-1001) use cases.
     SELECT [Id], CONVERT(VARCHAR(19), [Date], 126) AS [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees]
-    FROM LotGroups
-    WHERE LotGroupID = (SELECT MAX(LotGroupID) FROM LotGroups)
+    FROM FinalLots
+    WHERE LotGroupID = MaxLotGroupID
     ORDER BY [Date] ASC, [Id] ASC;
 
 END
