@@ -20,7 +20,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class TransactionLogger
     {
-        private static string version = "2.0.0";
+        private static string version = "2.0.1";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("LogTransaction")]

@@ -213,7 +213,7 @@ public class TransactionLoggerService
         var sqlQuery = "EXEC [Klondike].[getTransactionLogById] @Id, @UserId, @ClientId";
 
         using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@UId", record.Id);
+        command.Parameters.AddWithValue("@Id", record.Id);
         command.Parameters.AddWithValue("@UserId", record.UserId);
         command.Parameters.AddWithValue("@ClientId", record.ClientId);
 
