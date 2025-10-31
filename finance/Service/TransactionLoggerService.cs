@@ -204,6 +204,21 @@ public class TransactionLoggerService
 
         return await ReadToJsonAsync(command);
     }
+    
+    public async Task<string> GetTransactionLogById(TransactionLog record)
+    {
+        using SqlConnection connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[getTransactionLogById] @Id, @UserId, @ClientId";
+
+        using SqlCommand command = new SqlCommand(sqlQuery, connection);
+        command.Parameters.AddWithValue("@UId", record.Id);
+        command.Parameters.AddWithValue("@UserId", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+        return await ReadToJsonAsync(command);
+    }
 
     public async Task<string> GetProductTransactionLogs(TransactionLog record)
     {
