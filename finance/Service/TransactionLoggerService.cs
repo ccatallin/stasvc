@@ -91,9 +91,9 @@ public class TransactionLoggerService
         try
         {
             // First, get the original product symbol in case it changes.
-            var getOldSymbolCmd = new SqlCommand("SELECT [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [UserId] = @UserId  AND [ClientId] = @ClientId", connection, (SqlTransaction)transaction);
+            var getOldSymbolCmd = new SqlCommand("SELECT [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [CreatedById] = @UserId  AND [ClientId] = @ClientId", connection, (SqlTransaction)transaction);
             getOldSymbolCmd.Parameters.AddWithValue("@Id", record.Id);
-            getOldSymbolCmd.Parameters.AddWithValue("@UserId", record.UserId);
+            getOldSymbolCmd.Parameters.AddWithValue("@UserId", record.UserId); // The parameter name is fine, the query text was wrong.
             getOldSymbolCmd.Parameters.AddWithValue("@ClientId", record.ClientId);
             var oldProductSymbol = await getOldSymbolCmd.ExecuteScalarAsync() as string;
 
@@ -156,9 +156,9 @@ public class TransactionLoggerService
         try
         {
             // Get the product symbol before deleting.
-            var getSymbolCmd = new SqlCommand("SELECT [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [UserId] = @UserId AND [ClientId] = @ClientId", connection, (SqlTransaction)transaction);
+            var getSymbolCmd = new SqlCommand("SELECT [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [CreatedById] = @UserId AND [ClientId] = @ClientId", connection, (SqlTransaction)transaction);
             getSymbolCmd.Parameters.AddWithValue("@Id", record.Id);
-            getSymbolCmd.Parameters.AddWithValue("@UserId", record.UserId);
+            getSymbolCmd.Parameters.AddWithValue("@UserId", record.UserId); // The parameter name is fine, the query text was wrong.
             getSymbolCmd.Parameters.AddWithValue("@ClientId", record.ClientId);
             var productSymbol = await getSymbolCmd.ExecuteScalarAsync() as string;
 
