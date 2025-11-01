@@ -81,7 +81,10 @@ namespace FalxGroup.Finance.BusinessLogic
                     var signedQuantity = t.OperationId == -1 ? t.Quantity : -t.Quantity;
 
                     decimal unitValue = (t.ProductCategoryId == 3 && t.ProductId == 5)
-                        ? (Math.Floor(t.Price) + (t.Price - Math.Floor(t.Price)) * 100m / 32m) * 1000m
+                        // For bond futures (like ZB), price is in points and 32nds (e.g., 117.18 is 117 and 18/32).
+                        // We need to extract the integer part of the 32nds.
+                        // Example: 117.18 -> floor = 117. frac = 0.18. 32nds = (0.18 * 100) = 18.
+                        ? (Math.Floor(t.Price) + ((t.Price - Math.Floor(t.Price)) * 100m) / 32m) * 1000m
                         : t.Price;
 
                     return new
