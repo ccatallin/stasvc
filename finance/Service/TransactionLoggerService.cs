@@ -191,6 +191,104 @@ public class TransactionLoggerService
         }
     }
 
+    public async Task<Tuple<int, string>> LogCashTransaction(CashTransactionLog record)
+    {
+        if (record == null)
+        {
+            return new Tuple<int, string>(-1, null);
+        }
+
+        using var connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[logCashTransaction] @Date, @OperationId, @CashCategoryId, @Amount, @Notes, @CreatedById, @ClientId, @Id OUTPUT, @InsertedCount OUTPUT";
+
+        using var command = new SqlCommand(sqlQuery, connection);
+
+        command.Parameters.AddWithValue("@Date", record.Date);
+        command.Parameters.AddWithValue("@OperationId", record.OperationId);
+        command.Parameters.AddWithValue("@CashCategoryId", record.CashCategoryId);
+        command.Parameters.AddWithValue("@Amount", record.Amount);
+        command.Parameters.AddWithValue("@Notes", (object)record.Notes?.Trim() ?? DBNull.Value);
+        command.Parameters.AddWithValue("@CreatedById", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+        command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100).Direction = System.Data.ParameterDirection.Output;
+        var insertedCountParameter = command.Parameters.Add("@InsertedCount", System.Data.SqlDbType.Int);
+        insertedCountParameter.Direction = System.Data.ParameterDirection.Output;
+
+        await command.ExecuteNonQueryAsync();
+
+        var id = Convert.ToString(command.Parameters["@Id"].Value);
+        var result = (int)insertedCountParameter.Value;
+
+        return new Tuple<int, string>(result, result == 1 ? id : null);
+    }
+
+    public async Task<Tuple<int, string>> UpdateCashTransaction(CashTransactionLog record)
+    {
+        if (record == null || string.IsNullOrWhiteSpace(record.Id))
+        {
+            return new Tuple<int, string>(-1, null);
+        }
+
+        using var connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[updateCashTransaction] @Id, @Date, @OperationId, @CashCategoryId, @Amount, @Notes, @ModifiedById, @ClientId, @UpdatedCount OUTPUT";
+        using var command = new SqlCommand(sqlQuery, connection);
+
+        command.Parameters.AddWithValue("@Id", record.Id);
+        command.Parameters.AddWithValue("@Date", record.Date);
+        command.Parameters.AddWithValue("@OperationId", record.OperationId);
+        command.Parameters.AddWithValue("@CashCategoryId", record.CashCategoryId);
+        command.Parameters.AddWithValue("@Amount", record.Amount);
+        command.Parameters.AddWithValue("@Notes", (object)record.Notes?.Trim() ?? DBNull.Value);
+        command.Parameters.AddWithValue("@ModifiedById", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+        var updatedCountParameter = command.Parameters.Add("@UpdatedCount", System.Data.SqlDbType.Int);
+        updatedCountParameter.Direction = System.Data.ParameterDirection.Output;
+
+        await command.ExecuteNonQueryAsync();
+        var result = (int)updatedCountParameter.Value;
+
+        return new Tuple<int, string>(result, result == 1 ? record.Id : null);
+    }
+
+    public async Task<Tuple<int, string>> DeleteCashTransaction(CashTransactionLog record)
+    {
+        if (string.IsNullOrWhiteSpace(record?.Id))
+        {
+            return new Tuple<int, string>(-1, null);
+        }
+
+        using var connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        try
+        {
+            var sqlQuery = "EXEC [Klondike].[deleteCashTransaction] @Id, @ModifiedById, @ClientId, @DeletedCount OUTPUT";
+            using var command = new SqlCommand(sqlQuery, connection);
+            command.Parameters.AddWithValue("@Id", record.Id);
+            command.Parameters.AddWithValue("@ModifiedById", record.UserId);
+            command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+            var deletedCountParameter = command.Parameters.Add("@DeletedCount", System.Data.SqlDbType.Int);
+            deletedCountParameter.Direction = System.Data.ParameterDirection.Output;
+
+            await command.ExecuteNonQueryAsync();
+
+            var result = (int)deletedCountParameter.Value;
+
+            return new Tuple<int, string>(result, record.Id);
+        }
+        catch
+        {
+            throw;
+        }
+    }
+
     public async Task<string> GetOpenPositions(TransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
