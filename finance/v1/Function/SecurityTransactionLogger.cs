@@ -18,14 +18,14 @@ using System.Globalization;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class TransactionLogger
+    public static class SecurityTransactionLogger
     {
         private static string version = "2.0.2";
         private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
-        [FunctionName("LogTransaction")]
+        [FunctionName("SecurityTransactionLogger")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "put", "delete", Route = "finance/v1/log_transaction")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "put", "delete", Route = "finance/v1/transactions/securities")] HttpRequest req,
             ExecutionContext executionContext,
             ILogger log)
         {
@@ -86,7 +86,7 @@ namespace FalxGroup.Finance.Function
                             }
                             
                             log.LogTrace($"POST mode: {postMode}");
-                            var response = await TransactionLogger.processor.LogTransaction(record, postMode);
+                            var response = await processor.LogTransaction(record, postMode);
 
                             if (1 == response.Item1)
                             {
@@ -108,7 +108,7 @@ namespace FalxGroup.Finance.Function
                         }
                         case "PUT":
                         {
-                            var response = await TransactionLogger.processor.UpdateTransactionLog(record);
+                            var response = await processor.UpdateTransactionLog(record);
                             if (1 == response.Item1)
                             {
                                 statusCode = 200; // OK
@@ -129,7 +129,7 @@ namespace FalxGroup.Finance.Function
                         }
                         case "DELETE":
                         {
-                            var response = await TransactionLogger.processor.DeleteTransactionLog(record);
+                            var response = await processor.DeleteTransactionLog(record);
                             if (1 == response.Item1)
                             {
                                 statusCode = 200; // OK
@@ -149,7 +149,7 @@ namespace FalxGroup.Finance.Function
                             {
                                 case 1: // get raw transaction logs
                                 {
-                                    string jsonTransactionLogs = await TransactionLogger.processor.GetTransactionLogs(record);
+                                    string jsonTransactionLogs = await processor.GetTransactionLogs(record);
                                     if (jsonTransactionLogs.IsNullOrEmpty() || jsonTransactionLogs == "[]")
                                     {
                                         statusCode = 204; // No Content
@@ -165,7 +165,7 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 2: // get open positions
                                 {
-                                    string jsonOpenPositions = await TransactionLogger.processor.GetOpenPositions(record);
+                                    string jsonOpenPositions = await processor.GetOpenPositions(record);
                                     if (jsonOpenPositions.IsNullOrEmpty() || jsonOpenPositions == "[]")
                                     {
                                         statusCode = 204; // No Content
@@ -181,7 +181,7 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 3: // get product transaction logs
                                 { // GetOpenPositionTransactionLogs
-                                    string jsonProductTransactionLogs = await TransactionLogger.processor.GetProductTransactionLogs(record);
+                                    string jsonProductTransactionLogs = await processor.GetProductTransactionLogs(record);
                                     if (jsonProductTransactionLogs.IsNullOrEmpty() || jsonProductTransactionLogs == "[]")
                                     {
                                         statusCode = 204; // No Content
@@ -197,7 +197,7 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 4: // get realized profit and loss
                                 {
-                                    string jsonReportData = await TransactionLogger.processor.GetRealizedProfitAndLoss(record);
+                                    string jsonReportData = await processor.GetRealizedProfitAndLoss(record);
                                     if (jsonReportData.IsNullOrEmpty() || jsonReportData == "[]")
                                     {
                                         statusCode = 204; // No Content
@@ -213,7 +213,7 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 5: // get open position transaction logs
                                 { 
-                                    string jsonOpenPositionTransactionLogs = await TransactionLogger.processor.GetOpenPositionTransactionLogs(record);
+                                    string jsonOpenPositionTransactionLogs = await processor.GetOpenPositionTransactionLogs(record);
                                     if (jsonOpenPositionTransactionLogs.IsNullOrEmpty() || jsonOpenPositionTransactionLogs == "[]")
                                     {
                                         statusCode = 204; // No Content
@@ -229,7 +229,7 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 6: // get transaction log by id
                                 { 
-                                    string jsonTransactionLog = await TransactionLogger.processor.GetTransactionLogById(record);
+                                    string jsonTransactionLog = await processor.GetTransactionLogById(record);
                                     if (jsonTransactionLog.IsNullOrEmpty() || jsonTransactionLog == "[]")
                                     {
                                         statusCode = 204; // No Content
