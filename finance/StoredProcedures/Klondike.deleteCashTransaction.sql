@@ -20,11 +20,8 @@ BEGIN
     SET @DeletedCount = 0;
 
     BEGIN TRY
-        UPDATE [Klondike].[CashTransactionLogs]
-        SET [IsDeleted] = 1,
-            [ModifiedById] = @ModifiedById,
-            [Modified] = GETUTCDATE()
-        WHERE [Id] = @Id AND [ClientId] = @ClientId;
+        DELETE FROM [Klondike].[CashTransactionLogs] WITH (ROWLOCK)
+            WHERE [Id] = @Id AND [ClientId] = @ClientId;
 
         SET @DeletedCount = @@ROWCOUNT;
     END TRY
