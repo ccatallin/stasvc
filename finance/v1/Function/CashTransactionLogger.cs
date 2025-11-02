@@ -93,6 +93,13 @@ namespace FalxGroup.Finance.Function
                         }
                         break;
                     }
+                    case "GET":
+                    {
+                        statusCode = 200; // OK, but different message
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
+
+                        break;                        
+                    }
                     default:
                         statusCode = 405; // Method Not Allowed
                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Method {req.Method} not allowed." });
