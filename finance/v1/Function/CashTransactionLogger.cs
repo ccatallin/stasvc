@@ -115,23 +115,42 @@ namespace FalxGroup.Finance.Function
                     }
                     case "GET":
                     {
-                        string jsonCashTransactionLogs = await processor.GetCashTransactionLogs(record);
-                        if (string.IsNullOrEmpty(jsonCashTransactionLogs) || jsonCashTransactionLogs == "[]")
+                        switch (record.GetRequestId)
                         {
-                            statusCode = 204; // No Content
-                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
-                        }
-                        else
-                        {
-                            statusCode = 200; // OK
-                            responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonCashTransactionLogs}}}";
-                        }
+                            case 1: // get raw cash transaction logs
+                            {
+                                string jsonCashTransactionLogs = await processor.GetCashTransactionLogs(record);
+                                if (string.IsNullOrEmpty(jsonCashTransactionLogs) || jsonCashTransactionLogs == "[]")
+                                {
+                                    statusCode = 204; // No Content
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                }
+                                else
+                                {
+                                    statusCode = 200; // OK
+                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonCashTransactionLogs}}}";
+                                }
+                                
+                                break;
+                            }
+                            default:
+                            {
+                                statusCode = 200; // OK, but different message
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
+
+                                break;                             
+                            }
+                        }                
+
                         break;
                     }
                     default:
+                    {
                         statusCode = 405; // Method Not Allowed
                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Method {req.Method} not allowed." });
+
                         break;
+                    }
                 }
             }
             catch (JsonException jsonEx)
