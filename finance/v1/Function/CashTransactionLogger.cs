@@ -8,6 +8,7 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using FalxGroup.Finance.Service;
+using System.Globalization;
 using FalxGroup.Finance.Model;
 
 namespace FalxGroup.Finance.Function
@@ -19,7 +20,7 @@ namespace FalxGroup.Finance.Function
 
         [FunctionName("CashTransactionLogger")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", "put", "delete", /* "get", */ Route = "finance/v1/transactions/cash")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "put", "delete", Route = "finance/v1/transactions/cash")] HttpRequest req,
             ExecutionContext executionContext,
             ILogger log)
         {
@@ -28,15 +29,33 @@ namespace FalxGroup.Finance.Function
 
             try
             {
-                var jsonData = await new StreamReader(req.Body).ReadToEndAsync();
-                var record = JsonConvert.DeserializeObject<CashTransactionLog>(jsonData);
+                CashTransactionLog record = null;
+
+                if (req.Method.Equals("GET"))
+                {
+                    record = new CashTransactionLog
+                    {
+                        Id = req.Query["id"],
+                        ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
+                        UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
+                        StartDate = !string.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
+                        EndDate = !string.IsNullOrEmpty(req.Query["end_date"]) ? DateTime.Parse(req.Query["end_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null
+                    };
+                }
+                else
+                {
+                    var jsonData = await new StreamReader(req.Body).ReadToEndAsync();
+                    record = JsonConvert.DeserializeObject<CashTransactionLog>(jsonData);
+                }
 
                 // Basic validation and authorization check
                 // In a real app, you'd get the app key from headers, not the body.
                 // For now, we'll assume a placeholder check.
                 if (record == null)
                 {
-                    return new BadRequestObjectResult(new { StatusCode = 400, Message = "Invalid request body." });
+                    statusCode = 400;
+                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = "Invalid request body or query parameters." });
+                    return new ContentResult { Content = responseMessage, ContentType = "application/json", StatusCode = statusCode };
                 }
 
                 // This is a placeholder for a real authorization check.
@@ -95,10 +114,18 @@ namespace FalxGroup.Finance.Function
                     }
                     case "GET":
                     {
-                        statusCode = 200; // OK, but different message
-                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
-
-                        break;                        
+                        string jsonCashTransactionLogs = await processor.GetCashTransactionLogs(record);
+                        if (string.IsNullOrEmpty(jsonCashTransactionLogs) || jsonCashTransactionLogs == "[]")
+                        {
+                            statusCode = 204; // No Content
+                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                        }
+                        else
+                        {
+                            statusCode = 200; // OK
+                            responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonCashTransactionLogs}}}";
+                        }
+                        break;
                     }
                     default:
                         statusCode = 405; // Method Not Allowed

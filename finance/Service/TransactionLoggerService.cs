@@ -289,6 +289,22 @@ public class TransactionLoggerService
         }
     }
 
+    public async Task<string> GetCashTransactionLogs(CashTransactionLog record)
+    {
+        using SqlConnection connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[getCashTransactionLogs] @UserId, @ClientId, @StartDate, @EndDate";
+
+        using SqlCommand command = new SqlCommand(sqlQuery, connection);
+        command.Parameters.AddWithValue("@UserId", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+        command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
+        command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
+
+        return await ReadToJsonAsync(command);
+    }
+
     public async Task<string> GetOpenPositions(TransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
