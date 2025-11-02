@@ -34,13 +34,13 @@ namespace FalxGroup.Finance.Function
 
             try
             {
-                TransactionLog record = null;
+                SecurityTransactionLog record = null;
 
                 if (req.Method.Equals("GET"))
                 {
                     if (0 != req.Query.Count)
                     {
-                        record = new TransactionLog
+                        record = new SecurityTransactionLog
                         {
                             Id = req.Query["id"],
                             ApplicationKey = req.Query["application_key"],
@@ -59,7 +59,7 @@ namespace FalxGroup.Finance.Function
                 else if (req.Method.Equals("POST") || req.Method.Equals("PUT") || req.Method.Equals("DELETE"))
                 {
                     var jsonData = await new StreamReader(req.Body).ReadToEndAsync();
-                    record = JsonConvert.DeserializeObject<TransactionLog>(jsonData);
+                    record = JsonConvert.DeserializeObject<SecurityTransactionLog>(jsonData);
                 }
                 else
                 {

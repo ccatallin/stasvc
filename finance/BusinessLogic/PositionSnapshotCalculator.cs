@@ -7,7 +7,7 @@ namespace FalxGroup.Finance.BusinessLogic
 {
     public class PositionSnapshotCalculator
     {
-        public List<PositionSnapshot> Calculate(long userId, long clientId, string productSymbol, IEnumerable<TransactionLog> transactions)
+        public List<PositionSnapshot> Calculate(long userId, long clientId, string productSymbol, IEnumerable<SecurityTransactionLog> transactions)
         {
             if (transactions == null || !transactions.Any())
             {
@@ -69,7 +69,7 @@ namespace FalxGroup.Finance.BusinessLogic
             return dailySnapshots;
         }
 
-        private static List<TradeWithLot> AssignLotGroups(IEnumerable<TransactionLog> transactions)
+        private static List<TradeWithLot> AssignLotGroups(IEnumerable<SecurityTransactionLog> transactions)
         {
             var orderedTrades = transactions
                 .OrderBy(t => t.Date)
@@ -164,7 +164,7 @@ namespace FalxGroup.Finance.BusinessLogic
         // Private helper classes to improve readability over anonymous types
         private class TradeWithLot
         {
-            public TransactionLog Tx { get; set; } = new();
+            public SecurityTransactionLog Tx { get; set; } = new();
             public decimal SignedQuantity { get; set; }
             public decimal BuyValue { get; set; }
             public decimal BuyQuantity { get; set; }
@@ -175,7 +175,7 @@ namespace FalxGroup.Finance.BusinessLogic
 
         private class PerTransactionState
         {
-            public TransactionLog Tx { get; set; } = new();
+            public SecurityTransactionLog Tx { get; set; } = new();
             public int LotGroupId { get; set; }
             public decimal OpenQuantity { get; set; }
             public decimal TotalBuyValue { get; set; }

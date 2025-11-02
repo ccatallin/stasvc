@@ -23,7 +23,7 @@ public class TransactionLoggerService
         this._snapshotCalculator = new PositionSnapshotCalculator();
     }
 
-    public async Task<Tuple<int, string>> LogTransaction(TransactionLog record, string mode)
+    public async Task<Tuple<int, string>> LogTransaction(SecurityTransactionLog record, string mode)
     {
         if (record == null || record.IsEmpty)
         {
@@ -77,7 +77,7 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string>> UpdateTransactionLog(TransactionLog record)
+    public async Task<Tuple<int, string>> UpdateTransactionLog(SecurityTransactionLog record)
     {
         if (record == null || record.IsEmpty || string.IsNullOrWhiteSpace(record.Id))
         {
@@ -142,7 +142,7 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string>> DeleteTransactionLog(TransactionLog record)
+    public async Task<Tuple<int, string>> DeleteTransactionLog(SecurityTransactionLog record)
     {
         if (string.IsNullOrWhiteSpace(record?.Id))
         {
@@ -305,7 +305,7 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
 
-    public async Task<string> GetOpenPositions(TransactionLog record)
+    public async Task<string> GetOpenPositions(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -319,7 +319,7 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
     
-    public async Task<string> GetTransactionLogById(TransactionLog record)
+    public async Task<string> GetTransactionLogById(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -334,7 +334,7 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
 
-    public async Task<string> GetProductTransactionLogs(TransactionLog record)
+    public async Task<string> GetProductTransactionLogs(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -349,7 +349,7 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
     
-    public async Task<string> GetOpenPositionTransactionLogs(TransactionLog record)
+    public async Task<string> GetOpenPositionTransactionLogs(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -364,7 +364,7 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
 
-    public async Task<string> GetRealizedProfitAndLoss(TransactionLog record)
+    public async Task<string> GetRealizedProfitAndLoss(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -384,7 +384,7 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
 
-    public async Task<string> GetTransactionLogs(TransactionLog record)
+    public async Task<string> GetTransactionLogs(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
@@ -515,9 +515,9 @@ public class TransactionLoggerService
         }
     }
 
-    private async Task<List<TransactionLog>> GetTransactionsForSnapshotAsync(SqlConnection connection, SqlTransaction transaction, long userId, long clientId, string productSymbol)
+    private async Task<List<SecurityTransactionLog>> GetTransactionsForSnapshotAsync(SqlConnection connection, SqlTransaction transaction, long userId, long clientId, string productSymbol)
     {
-        var transactions = new List<TransactionLog>();
+        var transactions = new List<SecurityTransactionLog>();
         var cmd = new SqlCommand("[Klondike].[getTransactionsForSnapshot]", connection, transaction);
         cmd.CommandType = CommandType.StoredProcedure;
         cmd.Parameters.AddWithValue("@UserId", userId);
@@ -527,7 +527,7 @@ public class TransactionLoggerService
         using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            transactions.Add(new TransactionLog
+            transactions.Add(new SecurityTransactionLog
             {
                 Id = reader["Id"].ToString(),
                 Date = (DateTime)reader["Date"],

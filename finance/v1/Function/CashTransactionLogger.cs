@@ -36,6 +36,7 @@ namespace FalxGroup.Finance.Function
                     record = new CashTransactionLog
                     {
                         Id = req.Query["id"],
+                        GetRequestId = int.TryParse(req.Query["get_request_id"], out var getRequestId) ? getRequestId : 0,
                         ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
                         UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
                         StartDate = !string.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
