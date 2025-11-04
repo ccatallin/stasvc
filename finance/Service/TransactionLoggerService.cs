@@ -13,6 +13,19 @@ using FalxGroup.Finance.BusinessLogic;
 
 namespace FalxGroup.Finance.Service
 {
+    // A dedicated view model for open positions improves type safety and maintainability.
+    public class OpenPositionViewModel
+    {
+        public int ProductCategoryId { get; set; }
+        public int ProductId { get; set; }
+        public string ProductSymbol { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal AveragePrice { get; set; }
+        public decimal Cost { get; set; }
+        public decimal Commission { get; set; }
+        public decimal TotalCost => Cost + Commission;
+    }
+
 
 public class TransactionLoggerService
 {
@@ -307,16 +320,56 @@ public class TransactionLoggerService
 
     public async Task<string> GetOpenPositions(SecurityTransactionLog record)
     {
-        using SqlConnection connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
+        const string sqlQuery = @"
+            WITH LatestSnapshots AS (
+                SELECT  ps.[ProductCategoryId],
+                        ps.[ProductId],
+                        ps.[ProductSymbol],
+                        ps.[Quantity],
+                        ps.[Cost],
+                        ps.[Commission],
+                        ps.[AveragePrice],
+                        ROW_NUMBER() OVER(PARTITION BY ps.ProductSymbol ORDER BY ps.SnapshotDate DESC) as rn
+                    FROM [Klondike].[PositionSnapshots] AS ps WITH (NOLOCK)
+                    WHERE (ps.[ClientId] = @ClientId)
+            )
+            SELECT  [ProductCategoryId],
+                    [ProductId],
+                    [ProductSymbol],
+                    [Quantity],
+                    [AveragePrice],
+                    [Cost],
+                    [Commission],
+                    ([Cost] + [Commission]) AS TotalCost
+                FROM LatestSnapshots
+                    WHERE rn = 1 AND [Quantity] <> 0;";
 
-        var sqlQuery = "EXEC [Klondike].[getOpenPositions] @UserId, @ClientId";
+        using var connection = new SqlConnection(this.ConnectionString);
+        var openPositions = (await connection.QueryAsync<OpenPositionViewModel>(sqlQuery, new { record.ClientId })).ToList();
 
-        using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@UserId", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+        // Apply presentation-layer transformations after fetching the data.
+        foreach (var position in openPositions)
+        {
+            // Apply special formatting for ZB Bond price.
+            if (position.ProductCategoryId == 3 && position.ProductId == 5)
+            {
+                position.AveragePrice = FormatZbBondPrice(position.AveragePrice);
+            }
+        }
 
-        return await ReadToJsonAsync(command);
+        // The final JSON will have integer quantities and rounded prices.
+        var result = openPositions.Select(p => new {
+            p.ProductCategoryId,
+            p.ProductId,
+            p.ProductSymbol,
+            Quantity = (int)p.Quantity,
+            AveragePrice = Math.Round(p.AveragePrice, 2),
+            p.Cost,
+            p.Commission,
+            p.TotalCost
+        });
+
+        return JsonConvert.SerializeObject(result);
     }
     
     public async Task<string> GetTransactionLogById(SecurityTransactionLog record)
@@ -559,6 +612,21 @@ public class TransactionLoggerService
             table.Rows.Add(properties.Select(p => p.GetValue(item) ?? DBNull.Value).ToArray());
         }
         return table;
+    }
+
+    /// <summary>
+    /// Converts the stored dollar value of a ZB bond price back to its 'points.ticks' representation.
+    /// </summary>
+    /// <param name="storedPrice">The dollar value from the database (e.g., 117562.50m).</param>
+    /// <returns>The price in 'points.ticks' format (e.g., 117.18m).</returns>
+    private decimal FormatZbBondPrice(decimal storedPrice)
+    {
+        // The stored AveragePrice is a full dollar value (e.g., 117562.50 for 117 and 18/32nds).
+        // To reverse: (Price / 1000) gives points with decimals.
+        var priceInPoints = storedPrice / 1000m;
+        var points = Math.Floor(priceInPoints);
+        var ticks = (priceInPoints - points) * 32m;
+        return points + (ticks / 100m); // Combine into "points.ticks" format, e.g., 117.18
     }
 
     private async Task<string> ReadToJsonAsync(SqlCommand command)

@@ -46,10 +46,16 @@ BEGIN
             [ProductId],
             [ProductSymbol],
             [Quantity],
-            -- For products with a multiplier (like options), the stored AveragePrice is per contract.
-            -- We divide by the multiplier to get the per-unit/per-share price for display.
-            -- IIF(Multiplier > 1, [AveragePrice] / Multiplier, [AveragePrice]) AS [AveragePrice],
-            [AveragePrice], -- we don't divide by Multiplier since the [AveragePrice] is the priced payed for the contract
+            -- For the ZB bond product (Cat=3, Id=5), the AveragePrice is stored as a full dollar value.
+            -- We need to convert it back to the 'points and ticks' format (e.g., 117.18).
+            -- A price of 117.18 means 117 and 18/32nds. The stored value is (117 + 18/32) * 1000.
+            -- To reverse: (Price / 1000) gives points with decimals.
+            -- FLOOR(Price / 1000) gives the integer points.
+            -- (Price / 1000 - FLOOR(Price / 1000)) * 32 gives the number of ticks.
+            CASE
+                WHEN [ProductCategoryId] = 3 AND [ProductId] = 5 THEN CAST(FLOOR([AveragePrice] / 1000) + (([AveragePrice] / 1000) - FLOOR([AveragePrice] / 1000)) * 32 / 100 AS DECIMAL(18, 2))
+                ELSE [AveragePrice]
+            END AS [AveragePrice],
             [Cost],
             [Commission],
             ([Cost] + [Commission]) AS TotalCost
