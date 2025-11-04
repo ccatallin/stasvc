@@ -10,6 +10,7 @@ GO
 --              the transaction log recalculation logic, making it both
 --              accurate and performant. It replaces the older, less
 --              efficient getProfitAndLoss procedure.
+-- NOT USED ANYMORE KEEP 4 HISTORY
 -- =============================================
 CREATE OR ALTER PROCEDURE [Klondike].[getProfitAndLoss]
 

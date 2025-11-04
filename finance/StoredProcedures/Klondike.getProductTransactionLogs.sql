@@ -6,6 +6,7 @@ GO
 -- Author:		Catalin Calugaroiu
 -- Create date: 2025-10-08 13:25:10 AM
 -- Description:	Get all transactions from TransactionLog for a given product and client
+-- NOT USED ANYMORE KEEP 4 HISTORY
 -- =============================================
 CREATE PROCEDURE [Klondike].[getProductTransactionLogs] 
 

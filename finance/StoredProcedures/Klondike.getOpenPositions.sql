@@ -6,6 +6,7 @@ GO
 -- Author:		Catalin Calugaroiu
 -- Create date: 2025-10-08 20:21:34 PM
 -- Description:	Get open positions
+-- NOT USED ANYMORE KEEP 4 HISTORY
 -- =============================================
 CREATE OR ALTER PROCEDURE [Klondike].[getOpenPositions]
 

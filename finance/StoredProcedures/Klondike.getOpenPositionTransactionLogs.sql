@@ -8,6 +8,7 @@ GO
 -- Description:	Gets the set of transactions that constitute the current
 --              open position for a given product and client. It returns
 --              only the transactions since the position was last opened.
+-- NOT USED ANYMORE KEEP 4 HISTORY
 -- =============================================
 CREATE OR ALTER PROCEDURE [Klondike].[getOpenPositionTransactionLogs]
 
