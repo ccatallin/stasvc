@@ -319,6 +319,19 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
 
+    public async Task<string> GetCashTransactionCategories()
+    {
+        using SqlConnection connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[getCashTransactionCategories]";
+
+        using SqlCommand command = new SqlCommand(sqlQuery, connection);
+
+        return await ReadToJsonAsync(command);
+    }
+
+
     public async Task<string> GetOpenPositions(SecurityTransactionLog record)
     {
         const string sqlQuery = @"

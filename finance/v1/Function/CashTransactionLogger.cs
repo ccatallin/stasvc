@@ -15,7 +15,7 @@ namespace FalxGroup.Finance.Function
 {
     public static class CashTransactionLogger
     {
-        private static readonly string version = "1.0.0";
+        private static readonly string version = "1.0.1";
         private static readonly TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("CashTransactionLogger")]
@@ -131,6 +131,21 @@ namespace FalxGroup.Finance.Function
                                     responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonCashTransactionLogs}}}";
                                 }
                                 
+                                break;
+                            }
+                            case 2: // get cash transaction categories
+                            {
+                                string jsonCashTransactionCategories = await processor.GetCashTransactionCategories();
+                                if (string.IsNullOrEmpty(jsonCashTransactionCategories) || jsonCashTransactionCategories == "[]")
+                                {
+                                    statusCode = 204; // No Content
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                }
+                                else
+                                {
+                                    statusCode = 200; // OK
+                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"Categories\": {jsonCashTransactionCategories}}}";
+                                }
                                 break;
                             }
                             default:

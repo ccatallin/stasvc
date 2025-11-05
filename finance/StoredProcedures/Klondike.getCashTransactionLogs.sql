@@ -8,27 +8,31 @@ GO
 -- Description: Retrieves cash transaction logs with optional filtering.
 -- =============================================
 CREATE OR ALTER PROCEDURE [Klondike].[getCashTransactionLogs]
-    @UserId BIGINT,
-    @ClientId BIGINT,
-    @StartDate DATETIME = NULL,
-    @EndDate DATETIME = NULL
+
+@UserId BIGINT,
+@ClientId BIGINT,
+@StartDate DATETIME = NULL,
+@EndDate DATETIME = NULL
+
 AS
 BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        [Id],
-        [Date],
-        [OperationId],
-        [CashCategoryId],
-        [Amount],
-        [Notes]
-    FROM [Klondike].[CashTransactionLogs]
-    WHERE [ClientId] = @ClientId
-      AND [CreatedById] = @UserId
-      AND (@StartDate IS NULL OR [Date] >= @StartDate)
-      AND (@EndDate IS NULL OR [Date] <= @EndDate)
-      AND [IsDeleted] = 0
-    ORDER BY [Date] DESC;
+        ctl.[Id],
+        ctl.[Date],
+        ctl.[OperationId],
+        ctl.[CashCategoryId],
+        cc.[Name] AS CashCategoryName,
+        ctl.[Amount],
+        ctl.[Notes]
+    FROM [Klondike].[CashTransactionLogs] AS ctl
+    LEFT JOIN [Klondike].[CashCategories] AS cc ON ctl.CashCategoryId = cc.Id
+    WHERE ctl.[ClientId] = @ClientId
+      AND ctl.[CreatedById] = @UserId
+      AND (@StartDate IS NULL OR ctl.[Date] >= @StartDate)
+      AND (@EndDate IS NULL OR ctl.[Date] <= @EndDate)
+      AND ctl.[IsDeleted] = 0
+    ORDER BY ctl.[Date] DESC;
 END
 GO
