@@ -9,13 +9,14 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using FalxGroup.Finance.Service;
 using System.Globalization;
+using Microsoft.IdentityModel.Tokens;
 using FalxGroup.Finance.Model;
 
 namespace FalxGroup.Finance.Function
 {
     public static class CashTransactionLogger
     {
-        private static readonly string version = "1.0.1";
+        private static readonly string version = "1.0.2";
         private static readonly TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
 
         [FunctionName("CashTransactionLogger")]
@@ -146,6 +147,22 @@ namespace FalxGroup.Finance.Function
                                     statusCode = 200; // OK
                                     responseMessage = $"{{\"StatusCode\": {statusCode}, \"Categories\": {jsonCashTransactionCategories}}}";
                                 }
+                                break;
+                            }
+                            case 6: // get transaction log by id (6 it's the same as for security transactions logs)
+                            { 
+                                string jsonCashTransactionLog = await processor.GetCashTransactionLogById(record);
+                                if (jsonCashTransactionLog.IsNullOrEmpty() || jsonCashTransactionLog == "[]")
+                                {
+                                    statusCode = 204; // No Content
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                }
+                                else
+                                {
+                                    statusCode = 200; // OK
+                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"CashTransactionLog\": {jsonCashTransactionLog}}}";
+                                }
+
                                 break;
                             }
                             default:

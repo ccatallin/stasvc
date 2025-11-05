@@ -385,7 +385,7 @@ public class TransactionLoggerService
 
         return JsonConvert.SerializeObject(result);
     }
-    
+
     public async Task<string> GetTransactionLogById(SecurityTransactionLog record)
     {
         using SqlConnection connection = new SqlConnection(this.ConnectionString);
@@ -401,20 +401,35 @@ public class TransactionLoggerService
         return await ReadToJsonAsync(command);
     }
 
+    public async Task<string> GetCashTransactionLogById(CashTransactionLog record)
+    {
+        using SqlConnection connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+
+        var sqlQuery = "EXEC [Klondike].[getCashTransactionLogById] @Id, @UserId, @ClientId";
+
+        using SqlCommand command = new SqlCommand(sqlQuery, connection);
+        command.Parameters.AddWithValue("@Id", record.Id);
+        command.Parameters.AddWithValue("@UserId", record.UserId);
+        command.Parameters.AddWithValue("@ClientId", record.ClientId);
+
+        return await ReadToJsonAsync(command);
+    }
+
     public async Task<string> GetProductTransactionLogs(SecurityTransactionLog record)
     {
         // Logic moved from [Klondike].[getProductTransactionLogs] stored procedure.
         var sqlBuilder = new StringBuilder(@"
-            SELECT [Id], 
-                   [Date], 
-                   [OperationId], 
-                   [ProductCategoryId], 
-                   [ProductId], 
-                   [ProductSymbol], 
-                   [Quantity], +                   [Price], 
-                   [Fees]
-            FROM [Klondike].[TransactionLogs]
-            WHERE [ProductSymbol] = @ProductSymbol");
+        SELECT [Id], 
+                [Date], 
+                [OperationId], 
+                [ProductCategoryId], 
+                [ProductId], 
+                [ProductSymbol], 
+                [Quantity], +                   [Price], 
+                [Fees]
+        FROM [Klondike].[TransactionLogs]
+        WHERE [ProductSymbol] = @ProductSymbol");
 
         var parameters = new DynamicParameters();
         parameters.Add("ProductSymbol", record.ProductSymbol);
