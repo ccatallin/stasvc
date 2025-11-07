@@ -12,12 +12,13 @@ namespace FalxGroup.Finance.Function
     public class Ticker
     {
         private const string version = "2.0.0-isolated";
-        private static TickerService processor = new TickerService(5);
+        private readonly TickerService _processor;
         private readonly ILogger _logger;
 
-        public Ticker(ILoggerFactory loggerFactory)
+        public Ticker(ILoggerFactory loggerFactory, TickerService processor)
         {
             _logger = loggerFactory.CreateLogger<Ticker>();
+            _processor = processor;
         }
 
         [Function("Ticker")]
@@ -26,7 +27,7 @@ namespace FalxGroup.Finance.Function
             string? symbol,
             string? market)
         {
-            var response = await Ticker.processor.Run(_logger, nameof(Ticker), version, symbol, market);
+            var response = await _processor.Run(_logger, nameof(Ticker), version, symbol, market);
 
             StringBuilder responseBuilder = new StringBuilder();
 

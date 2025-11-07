@@ -14,11 +14,13 @@ namespace FalxGroup.Finance.Function
     public class CboeVolatilityR16
     {
         private const string version = "2.0.0-isolated";
+        private readonly TickerService _processor;
         private readonly ILogger _logger;
 
-        public CboeVolatilityR16(ILoggerFactory loggerFactory)
+        public CboeVolatilityR16(ILoggerFactory loggerFactory, TickerService processor)
         {
             _logger = loggerFactory.CreateLogger<CboeVolatilityR16>();
+            _processor = processor;
         }
         
         private const string cboeIndexesMarketTicker = "INDEXCBOE";
@@ -26,8 +28,6 @@ namespace FalxGroup.Finance.Function
             This function is used to apply the rule of 16 for the following CBOE indexes VIX, VVIX, VXN, VXD, RVX, MOVE, GVZ and OVX
          */
         private static readonly string[] cboeIndexes = { "VIX", "VVIX", "VXN", "VXD", "RVX", "GVZ", "OVX" };
-
-        private static TickerService processor = new TickerService(5);
 
         [Function("CboeVolatilityR16")]
         public async Task<HttpResponseData> Run(
@@ -41,7 +41,7 @@ namespace FalxGroup.Finance.Function
             {
                 var indexSymbol = (string.IsNullOrEmpty(symbol) ? "VIX" : symbol.ToUpper());
 
-                var response = await CboeVolatilityR16.processor.Run(_logger, 
+                var response = await _processor.Run(_logger, 
                     functionName, version, 
                     (cboeIndexes.Any(validSymbol => validSymbol == indexSymbol) ? indexSymbol : "VIX"), 
                     cboeIndexesMarketTicker);

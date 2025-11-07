@@ -17,6 +17,10 @@ var host = new HostBuilder()
             }
             return new TransactionLoggerService(connectionString!);
         });
+
+        // Register TickerService. It doesn't have direct dependencies in its constructor,
+        // but registering it allows it to be injected into your function classes.
+        services.AddSingleton<TickerService>();
     })
     .Build();
 
