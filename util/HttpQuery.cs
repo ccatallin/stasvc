@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -7,7 +7,7 @@ namespace cc.net
 
 public class HttpQuery
 {
-	private HttpClient httpClient = null;
+	private HttpClient httpClient = null!;
 
     public HttpQuery()
     {
@@ -26,7 +26,7 @@ public class HttpQuery
     { 
         get
         {
-            return this.httpClient.BaseAddress?.ToString();
+            return this.httpClient.BaseAddress?.ToString() ?? string.Empty;
         }
 
         set 

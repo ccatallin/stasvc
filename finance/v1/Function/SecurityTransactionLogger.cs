@@ -1,12 +1,9 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-// --
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-// --
+using System.Net;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 // --
 using Newtonsoft.Json;
@@ -18,23 +15,29 @@ using System.Globalization;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class SecurityTransactionLogger
+    public class SecurityTransactionLogger
     {
-        private static string version = "1.0.1";
-        private static TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
+        private const string version = "2.0.0-isolated";
+        private readonly ILogger _logger;
+        private readonly TransactionLoggerService _processor;
 
-        [FunctionName("SecurityTransactionLogger")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "put", "delete", Route = "finance/v1/transactions/securities")] HttpRequest req,
-            ExecutionContext executionContext,
-            ILogger log)
+        public SecurityTransactionLogger(ILoggerFactory loggerFactory, TransactionLoggerService processor)
+        {
+            _logger = loggerFactory.CreateLogger<SecurityTransactionLogger>();
+            _processor = processor;
+        }
+
+        [Function("SecurityTransactionLogger")]
+        public async Task<HttpResponseData> Run(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", "put", "delete", Route = "finance/v1/transactions/securities")] HttpRequestData req)
         {
             string responseMessage = "";
-            int statusCode = 500;
+            var statusCode = HttpStatusCode.InternalServerError;
 
+            var functionName = nameof(SecurityTransactionLogger);
             try
             {
-                SecurityTransactionLog record = null;
+                SecurityTransactionLog? record = null;
 
                 if (req.Method.Equals("GET"))
                 {
@@ -42,17 +45,17 @@ namespace FalxGroup.Finance.Function
                     {
                         record = new SecurityTransactionLog
                         {
-                            Id = req.Query["id"],
-                            ApplicationKey = req.Query["application_key"],
+                            Id = req.Query["id"] ?? null,
+                            ApplicationKey = req.Query["application_key"] ?? null,
                             ClientId = long.TryParse(req.Query["client_id"], out var clientId) ? clientId : 0,
                             UserId = long.TryParse(req.Query["user_id"], out var userId) ? userId : 0,
                             UserAccountId = long.TryParse(req.Query["user_account_id"], out var userAccount) ? userAccount : 0,
                             GetRequestId = int.TryParse(req.Query["get_request_id"], out var getRequestId) ? getRequestId : 0,
                             ProductCategoryId = int.TryParse(req.Query["product_category_id"], out var productCategoryId) ? productCategoryId : 0,
                             ProductId = int.TryParse(req.Query["product_id"], out var productId) ? productId : 0,
-                            ProductSymbol = req.Query["product_symbol"],
-                            StartDate = !String.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
-                            EndDate = !String.IsNullOrEmpty(req.Query["end_date"]) ? DateTime.Parse(req.Query["end_date"], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null
+                            ProductSymbol = req.Query["product_symbol"] ?? null,
+                            StartDate = !String.IsNullOrEmpty(req.Query["start_date"]) ? DateTime.Parse(req.Query["start_date"]!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null,
+                            EndDate = !String.IsNullOrEmpty(req.Query["end_date"]) ? DateTime.Parse(req.Query["end_date"]!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : (DateTime?)null
                         };
                     }
                 }
@@ -63,44 +66,35 @@ namespace FalxGroup.Finance.Function
                 }
                 else
                 {
-                    statusCode = 405;
-                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} NOT ALLOWED" });
-                    return new ObjectResult(responseMessage) { StatusCode = statusCode };
+                    statusCode = HttpStatusCode.MethodNotAllowed;
+                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} version {version} METHOD {req.Method} NOT ALLOWED" });
+                    return await CreateResponse(req, statusCode, responseMessage);
                 }
 
-                if ((null != record) && record.ApplicationKey.Equals("e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e"))
+                if (record != null && "e0e06109-0b3a-4e64-8fe9-1e1e23db0f5e".Equals(record.ApplicationKey))
                 {
                     switch (req.Method)
                     {
                         case "POST":
                         {
-                            string postMode = string.Empty;
+                            string postMode = req.Query["mode"]?.ToLower() ?? "normal";
                             
-                            try
-                            {
-                                postMode = req.Query["mode"].ToString()?.ToLower() ?? "normal";
-                            }
-                            catch
-                            {
-                                // ignore error and use whatever value was sent
-                            }
-                            
-                            log.LogTrace($"POST mode: {postMode}");
-                            var response = await processor.LogTransaction(record, postMode);
+                            _logger.LogTrace($"POST mode: {postMode}");
+                            var response = await _processor.LogTransaction(record, postMode);
 
                             if (1 == response.Item1)
                             {
-                                statusCode = 201; // Created
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
+                                statusCode = HttpStatusCode.Created;
+                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
                             }
                             else if (-2 == response.Item1)
                             {
-                                statusCode = 409; // Conflict
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"A product named '{record.ProductSymbol}' already exists with a different category or type." });
+                                statusCode = HttpStatusCode.Conflict;
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"A product named '{record.ProductSymbol ?? "unknown"}' already exists with a different category or type." });
                             }
                             else
                             {
-                                statusCode = 500;
+                                statusCode = HttpStatusCode.InternalServerError;
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records inserted {response.Item1}" });
                             }
 
@@ -108,20 +102,20 @@ namespace FalxGroup.Finance.Function
                         }
                         case "PUT":
                         {
-                            var response = await processor.UpdateTransactionLog(record);
+                            var response = await _processor.UpdateTransactionLog(record);
                             if (1 == response.Item1)
                             {
-                                statusCode = 200; // OK
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
+                                statusCode = HttpStatusCode.OK;
+                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
                             }
                             else if (-2 == response.Item1)
                             {
-                                statusCode = 409; // Conflict
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Updating this transaction for product '{record.ProductSymbol}' would create a conflict with an existing product's category or type." });
+                                statusCode = HttpStatusCode.Conflict;
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Updating this transaction for product '{record.ProductSymbol ?? "unknown"}' would create a conflict with an existing product's category or type." });
                             }
                             else
                             {
-                                statusCode = 500;
+                                statusCode = HttpStatusCode.InternalServerError;
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records updated {response.Item1}" });
                             }
 
@@ -129,15 +123,15 @@ namespace FalxGroup.Finance.Function
                         }
                         case "DELETE":
                         {
-                            var response = await processor.DeleteTransactionLog(record);
+                            var response = await _processor.DeleteTransactionLog(record);
                             if (1 == response.Item1)
                             {
-                                statusCode = 200; // OK
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Id = response.Item2 });
+                                statusCode = HttpStatusCode.OK;
+                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
                             }
                             else
                             {
-                                statusCode = 500;
+                                statusCode = HttpStatusCode.InternalServerError;
                                 responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Records deleted {response.Item1}" });
                             }
 
@@ -149,15 +143,15 @@ namespace FalxGroup.Finance.Function
                             {
                                 case 1: // get raw transaction logs
                                 {
-                                    string jsonTransactionLogs = await processor.GetTransactionLogs(record);
+                                    string jsonTransactionLogs = await _processor.GetTransactionLogs(record);
                                     if (jsonTransactionLogs.IsNullOrEmpty() || jsonTransactionLogs == "[]")
                                     {
-                                        statusCode = 204; // No Content
+                                        statusCode = HttpStatusCode.NoContent;
                                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                     }
                                     else
                                     {
-                                        statusCode = 200; // OK
+                                        statusCode = HttpStatusCode.OK;
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonTransactionLogs}}}";
                                     }
 
@@ -165,15 +159,15 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 2: // get open positions
                                 {
-                                    string jsonOpenPositions = await processor.GetOpenPositions(record);
+                                    string jsonOpenPositions = await _processor.GetOpenPositions(record);
                                     if (jsonOpenPositions.IsNullOrEmpty() || jsonOpenPositions == "[]")
                                     {
-                                        statusCode = 204; // No Content
+                                        statusCode = HttpStatusCode.NoContent;
                                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                     }
                                     else
                                     {
-                                        statusCode = 200; // OK
+                                        statusCode = HttpStatusCode.OK;
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositions\": {jsonOpenPositions}}}";
                                     }
 
@@ -181,15 +175,15 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 3: // get product transaction logs
                                 { // GetOpenPositionTransactionLogs
-                                    string jsonProductTransactionLogs = await processor.GetProductTransactionLogs(record);
+                                    string jsonProductTransactionLogs = await _processor.GetProductTransactionLogs(record);
                                     if (jsonProductTransactionLogs.IsNullOrEmpty() || jsonProductTransactionLogs == "[]")
                                     {
-                                        statusCode = 204; // No Content
+                                        statusCode = HttpStatusCode.NoContent;
                                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                     }
                                     else
                                     {
-                                        statusCode = 200; // OK
+                                        statusCode = HttpStatusCode.OK;
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"ProductTransactionLogs\": {jsonProductTransactionLogs}}}";
                                     }
 
@@ -197,15 +191,15 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 4: // get realized profit and loss
                                 {
-                                    string jsonReportData = await processor.GetRealizedProfitAndLoss(record);
+                                    string jsonReportData = await _processor.GetRealizedProfitAndLoss(record);
                                     if (jsonReportData.IsNullOrEmpty() || jsonReportData == "[]")
                                     {
-                                        statusCode = 204; // No Content
+                                        statusCode = HttpStatusCode.NoContent;
                                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                     }
                                     else
                                     {
-                                        statusCode = 200; // OK
+                                        statusCode = HttpStatusCode.OK;
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonReportData}}}";
                                     }
 
@@ -213,15 +207,15 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 5: // get open position transaction logs
                                 { 
-                                    string jsonOpenPositionTransactionLogs = await processor.GetOpenPositionTransactionLogs(record);
+                                    string jsonOpenPositionTransactionLogs = await _processor.GetOpenPositionTransactionLogs(record);
                                     if (jsonOpenPositionTransactionLogs.IsNullOrEmpty() || jsonOpenPositionTransactionLogs == "[]")
                                     {
-                                        statusCode = 204; // No Content
+                                        statusCode = HttpStatusCode.NoContent;
                                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                     }
                                     else
                                     {
-                                        statusCode = 200; // OK
+                                        statusCode = HttpStatusCode.OK;
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositionTransactionLogs\": {jsonOpenPositionTransactionLogs}}}";
                                     }
 
@@ -229,15 +223,15 @@ namespace FalxGroup.Finance.Function
                                 }
                                 case 6: // get transaction log by id
                                 { 
-                                    string jsonTransactionLog = await processor.GetTransactionLogById(record);
+                                    string jsonTransactionLog = await _processor.GetTransactionLogById(record);
                                     if (jsonTransactionLog.IsNullOrEmpty() || jsonTransactionLog == "[]")
                                     {
-                                        statusCode = 204; // No Content
+                                        statusCode = HttpStatusCode.NoContent;
                                         responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
                                     }
                                     else
                                     {
-                                        statusCode = 200; // OK
+                                        statusCode = HttpStatusCode.OK;
                                         responseMessage = $"{{\"StatusCode\": {statusCode}, \"TransactionLog\": {jsonTransactionLog}}}";
                                     }
 
@@ -245,8 +239,8 @@ namespace FalxGroup.Finance.Function
                                 }
                                 default:
                                 {
-                                    statusCode = 200; // OK, but different message
-                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} METHOD {req.Method} version {version}" });
+                                    statusCode = HttpStatusCode.OK;
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} METHOD {req.Method} version {version}" });
 
                                     break;
                                 }
@@ -260,30 +254,36 @@ namespace FalxGroup.Finance.Function
                 {
                     if (req.Method.Equals("GET"))
                     {
-                        statusCode = 200; // OK print version
-                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version}" });
+                        statusCode = HttpStatusCode.OK;
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} version {version}" });
                     }
                     else
                     {
-                        statusCode = 401; // Unauthorized
-                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} INVALID KEY" });
+                        statusCode = HttpStatusCode.Unauthorized;
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} version {version} METHOD {req.Method} INVALID KEY" });
                     }
                 }
-                
-                statusCode = 200; // because it is an application error not a infra system error
             }
             catch (Exception exception)
             {
-                statusCode = 500;
+                statusCode = HttpStatusCode.InternalServerError;
                 responseMessage = JsonConvert.SerializeObject(new
                 {
                     StatusCode = statusCode,
-                    Message = $"{executionContext.FunctionName} version {version} METHOD {req.Method} ERROR: {exception.Message}"
+                    Message = $"{functionName} version {version} METHOD {req.Method} ERROR: {exception.Message}"
                 });
-                log.LogError(exception, exception.Message);
+                _logger.LogError(exception, exception.Message);
             }
             
-            return new ContentResult { Content = responseMessage, ContentType = "application/json", StatusCode = statusCode };
+            return await CreateResponse(req, statusCode, responseMessage);
+        }
+
+        private async Task<HttpResponseData> CreateResponse(HttpRequestData req, HttpStatusCode statusCode, string message)
+        {
+            var response = req.CreateResponse(statusCode);
+            response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+            await response.WriteStringAsync(message);
+            return response;
         }
     }
 }

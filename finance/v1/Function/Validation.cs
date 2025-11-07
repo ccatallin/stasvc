@@ -1,9 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using System.Net;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 using FalxGroup.Finance.Service;
 using System.Text;
@@ -12,29 +11,37 @@ using Newtonsoft.Json.Linq;
 #if DEBUG
 namespace FalxGroup.Finance.Function
 {
-    public static class Validation
+    public class Validation
     {
-        private static readonly TransactionLoggerService processor = new TransactionLoggerService(Environment.GetEnvironmentVariable("SqlConnectionString"));
+        private readonly TransactionLoggerService _processor;
+        private readonly ILogger _logger;
 
-        [FunctionName("ValidateSnapshots")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "finance/v1/validate_snapshots")] HttpRequest req,
-            ILogger log)
+        public Validation(TransactionLoggerService processor, ILoggerFactory loggerFactory)
         {
-            log.LogInformation("C# HTTP trigger function 'ValidateSnapshots' processed a request.");
+            _processor = processor;
+            _logger = loggerFactory.CreateLogger<Validation>();
+        }
+
+        [Function("ValidateSnapshots")]
+        public async Task<HttpResponseData> Run(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "finance/v1/validate_snapshots")] HttpRequestData req)
+        {
+            _logger.LogInformation("C# HTTP trigger function 'ValidateSnapshots' processed a request.");
 
             if (!long.TryParse(req.Query["userId"], out long userId) ||
                 !long.TryParse(req.Query["clientId"], out long clientId) ||
-                string.IsNullOrEmpty(req.Query["productSymbol"]))
-            {
-                return new BadRequestObjectResult("Please provide 'userId' (long), 'clientId' (long), and 'productSymbol' (string) in the query string.");
+                string.IsNullOrEmpty(req.Query["productSymbol"])) // This will be null if not present
+            {   
+                var badReqResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badReqResponse.WriteStringAsync("Please provide 'userId' (long), 'clientId' (long), and 'productSymbol' (string) in the query string.");
+                return badReqResponse;
             }
 
-            string productSymbol = req.Query["productSymbol"];
+            string productSymbol = req.Query["productSymbol"]!;
 
             try
             {
-                var (expectedJson, actualJson) = await processor.ValidateSnapshotCalculationAsync(userId, clientId, productSymbol);
+                var (expectedJson, actualJson) = await _processor.ValidateSnapshotCalculationAsync(userId, clientId, productSymbol);
 
                 bool areEqual = JToken.DeepEquals(JToken.Parse(expectedJson), JToken.Parse(actualJson));
 
@@ -70,12 +77,17 @@ namespace FalxGroup.Finance.Function
 
                 htmlBuilder.Append("</body></html>");
 
-                return new ContentResult { Content = htmlBuilder.ToString(), ContentType = "text/html" };
+                var response = req.CreateResponse(HttpStatusCode.OK);
+                response.Headers.Add("Content-Type", "text/html; charset=utf-8");
+                await response.WriteStringAsync(htmlBuilder.ToString());
+                return response;
             }
             catch (Exception ex)
             {
-                log.LogError(ex, "Error during snapshot validation.");
-                return new ObjectResult($"An error occurred: {ex.Message}") { StatusCode = 500 };
+                _logger.LogError(ex, "Error during snapshot validation.");
+                var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+                await errorResponse.WriteStringAsync($"An error occurred: {ex.Message}");
+                return errorResponse;
             }
         }
     }

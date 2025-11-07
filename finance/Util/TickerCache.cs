@@ -66,17 +66,18 @@ public class TickerCache
         return exists;
     }
 
-    public Tuple<DateTime, string> GetValueOrDefault(string key)
+    public Tuple<DateTime, string>? GetValueOrDefault(string key)
     {
-        Tuple<DateTime, string> cacheValue = null;
-
         try
         {
             cacheAccessControl.WaitOne();
 
             if (!this.IsTimeout(key))
             {
-                cacheValue = this.cache.GetValueOrDefault(key);
+                if (this.cache.TryGetValue(key, out var value))
+                {
+                    return value;
+                }
             }
         }
         catch (Exception)
@@ -88,7 +89,7 @@ public class TickerCache
             cacheAccessControl.ReleaseMutex();
         }
 
-        return cacheValue;
+        return null;
     }
 
     public void Add(string key, string value)

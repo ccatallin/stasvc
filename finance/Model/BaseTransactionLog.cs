@@ -7,7 +7,7 @@ namespace FalxGroup.Finance.Model
     public abstract class BaseTransactionLog
     {
         [DataMember(Name = "id")]
-        public string Id { get; set; }
+        public string? Id { get; set; }
 
         [DataMember(Name = "date")]
         public DateTime Date { get; set; }
@@ -16,7 +16,7 @@ namespace FalxGroup.Finance.Model
         public int OperationId { get; set; }
 
         [DataMember(Name = "notes")]
-        public string Notes { get; set; }
+        public string? Notes { get; set; }
 
         [DataMember(Name = "user_id")]
         public long UserId { get; set; }
@@ -28,7 +28,7 @@ namespace FalxGroup.Finance.Model
         public long UserAccountId { get; set; }
 
         [DataMember(Name = "application_key")]
-        public string ApplicationKey { get; set; }
+        public string? ApplicationKey { get; set; }
 
         [DataMember(Name = "get_request_id")]
         public int GetRequestId { get; set; }

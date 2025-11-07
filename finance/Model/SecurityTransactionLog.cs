@@ -46,7 +46,7 @@ namespace FalxGroup.Finance.Model
         public int ProductId { get; set; }
 
         [DataMember(Name = "product_symbol")]
-        public string ProductSymbol { get; set; }
+        public string? ProductSymbol { get; set; }
 
         [DataMember(Name = "quantity")]
         public int Quantity { get; set; }

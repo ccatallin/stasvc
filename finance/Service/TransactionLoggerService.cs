@@ -19,7 +19,7 @@ namespace FalxGroup.Finance.Service
     {
         public int ProductCategoryId { get; set; }
         public int ProductId { get; set; }
-        public string ProductSymbol { get; set; }
+        public string ProductSymbol { get; set; } = string.Empty;
         public decimal Quantity { get; set; }
         public decimal AveragePrice { get; set; }
         public decimal Cost { get; set; }
@@ -37,11 +37,11 @@ public class TransactionLoggerService
         this._snapshotCalculator = new PositionSnapshotCalculator();
     }
 
-    public async Task<Tuple<int, string>> LogTransaction(SecurityTransactionLog record, string mode)
+    public async Task<Tuple<int, string?, decimal?>> LogTransaction(SecurityTransactionLog record, string mode)
     {
         if (record == null || record.IsEmpty)
         {
-            return new Tuple<int, string>(-1, null);
+            return new Tuple<int, string?, decimal?>(-1, null, null);
         }
 
         using var connection = new SqlConnection(this.ConnectionString);
@@ -50,39 +50,43 @@ public class TransactionLoggerService
 
         try
         {
-            var sqlQuery = "EXEC [Klondike].[logTransactionNew] @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @CreatedById, @ClientId, @Mode, @Id OUTPUT, @InsertedCount OUTPUT";
+            const string sql = "[Klondike].[logTransactionNew]";
+            var parameters = new DynamicParameters();
+            parameters.Add("@Date", record.Date);
+            parameters.Add("@OperationId", record.OperationId);
+            parameters.Add("@ProductCategoryId", record.ProductCategoryId);
+            parameters.Add("@ProductId", record.ProductId);
+            parameters.Add("@ProductSymbol", record.ProductSymbol!.Trim());
+            parameters.Add("@Quantity", record.Quantity);
+            parameters.Add("@Price", record.Price);
+            parameters.Add("@Fees", record.Fees);
+            parameters.Add("@Notes", record.Notes?.Trim());
+            parameters.Add("@CreatedById", record.UserId);
+            parameters.Add("@ClientId", record.ClientId);
+            parameters.Add("@Mode", mode.Equals("import") ? 0 : 1);
+            parameters.Add("@Id", dbType: DbType.String, direction: ParameterDirection.Output, size: 100);
+            parameters.Add("@InsertedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-            using var command = new SqlCommand(sqlQuery, connection, (SqlTransaction)transaction);
+            await connection.ExecuteAsync(sql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
 
-            command.Parameters.AddWithValue("@Date", record.Date);
-            command.Parameters.AddWithValue("@OperationId", record.OperationId);
-            command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);
-            command.Parameters.AddWithValue("@ProductId", record.ProductId);
-            command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol.Trim());
-            command.Parameters.AddWithValue("@Quantity", record.Quantity);
-            command.Parameters.AddWithValue("@Price", record.Price);
-            command.Parameters.AddWithValue("@Fees", record.Fees);
-            command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
-            command.Parameters.AddWithValue("@CreatedById", record.UserId);
-            command.Parameters.AddWithValue("@ClientId", record.ClientId);
-            command.Parameters.AddWithValue("@Mode", mode.Equals("import") ? 0 : 1);
+            string? id = parameters.Get<string>("@Id");
+            int result = parameters.Get<int>("@InsertedCount");
 
-            command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100).Direction = System.Data.ParameterDirection.Output;
-            var insertedCountParameter = command.Parameters.Add("@InsertedCount", System.Data.SqlDbType.Int);
-            insertedCountParameter.Direction = System.Data.ParameterDirection.Output;
-
-            await command.ExecuteNonQueryAsync();
-
-            var id = Convert.ToString(command.Parameters["@Id"].Value);
-            var result = (int)insertedCountParameter.Value;
-
+            decimal? newCashBalance = null;
             if (result == 1)
             {
-                await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, record.ProductSymbol);
+                // First, update the cash balance with the immediate impact of the trade (e.g., fees for futures).
+                newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, record);
+
+                // Then, update the position snapshots.
+                await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, record.ProductSymbol!);
+
+                // Finally, if this trade closed a futures position, realize the P&L into the cash balance.
+                newCashBalance = await HandleFuturesPnLRealizationAsync(connection, (SqlTransaction)transaction, record, newCashBalance);
             }
 
             await transaction.CommitAsync();
-            return new Tuple<int, string>(result, result == 1 ? id : null);
+            return new Tuple<int, string?, decimal?>(result, result == 1 ? id : null, newCashBalance);
         }
         catch
         {
@@ -91,11 +95,11 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string>> UpdateTransactionLog(SecurityTransactionLog record)
+    public async Task<Tuple<int, string?, decimal?>> UpdateTransactionLog(SecurityTransactionLog record)
     {
         if (record == null || record.IsEmpty || string.IsNullOrWhiteSpace(record.Id))
         {
-            return new Tuple<int, string>(-1, null);
+            return new Tuple<int, string?, decimal?>(-1, null, null);
         }
 
         using var connection = new SqlConnection(this.ConnectionString);
@@ -104,40 +108,43 @@ public class TransactionLoggerService
 
         try
         {
-            // First, get the original product symbol in case it changes.
-            var getOldSymbolCmd = new SqlCommand("SELECT [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [CreatedById] = @UserId  AND [ClientId] = @ClientId", connection, (SqlTransaction)transaction);
-            getOldSymbolCmd.Parameters.AddWithValue("@Id", record.Id);
-            getOldSymbolCmd.Parameters.AddWithValue("@UserId", record.UserId); // The parameter name is fine, the query text was wrong.
-            getOldSymbolCmd.Parameters.AddWithValue("@ClientId", record.ClientId);
-            var oldProductSymbol = await getOldSymbolCmd.ExecuteScalarAsync() as string;
+            // First, get the original transaction details to revert its cash impact.
+            const string getOldTxSql = "SELECT * FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
+            var oldTransaction = await connection.QuerySingleOrDefaultAsync<SecurityTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
+            var oldProductSymbol = oldTransaction?.ProductSymbol;
 
             // Now, execute the update.
-            var sqlQuery = "EXEC [Klondike].[updateTransactionLogNew] @Id, @Date, @OperationId, @ProductCategoryId, @ProductId, @ProductSymbol, @Quantity, @Price, @Fees, @Notes, @ModifiedById, @ClientId, @UpdatedCount OUTPUT";
-            using var command = new SqlCommand(sqlQuery, connection, (SqlTransaction)transaction);
+            const string updateSql = "[Klondike].[updateTransactionLogNew]";
+            var parameters = new DynamicParameters();
+            parameters.Add("@Id", record.Id);
+            parameters.Add("@Date", record.Date);
+            parameters.Add("@OperationId", record.OperationId);
+            parameters.Add("@ProductCategoryId", record.ProductCategoryId);
+            parameters.Add("@ProductId", record.ProductId);
+            parameters.Add("@ProductSymbol", record.ProductSymbol!.Trim());
+            parameters.Add("@Quantity", record.Quantity);
+            parameters.Add("@Price", record.Price);
+            parameters.Add("@Fees", record.Fees);
+            parameters.Add("@Notes", record.Notes?.Trim());
+            parameters.Add("@ModifiedById", record.UserId);
+            parameters.Add("@ClientId", record.ClientId);
+            parameters.Add("@UpdatedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-            command.Parameters.AddWithValue("@Id", record.Id);
-            command.Parameters.AddWithValue("@Date", record.Date);
-            command.Parameters.AddWithValue("@OperationId", record.OperationId);
-            command.Parameters.AddWithValue("@ProductCategoryId", record.ProductCategoryId);
-            command.Parameters.AddWithValue("@ProductId", record.ProductId);
-            command.Parameters.AddWithValue("@ProductSymbol", record.ProductSymbol.Trim());
-            command.Parameters.AddWithValue("@Quantity", record.Quantity);
-            command.Parameters.AddWithValue("@Price", record.Price);
-            command.Parameters.AddWithValue("@Fees", record.Fees);
-            command.Parameters.AddWithValue("@Notes", record.Notes?.Trim());
-            command.Parameters.AddWithValue("@ModifiedById", record.UserId);
-            command.Parameters.AddWithValue("@ClientId", record.ClientId);
+            await connection.ExecuteAsync(updateSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
 
-            var updatedCountParameter = command.Parameters.Add("UpdatedCount", System.Data.SqlDbType.Int);
-            updatedCountParameter.Direction = System.Data.ParameterDirection.Output;
+            int result = parameters.Get<int>("@UpdatedCount");
 
-            await command.ExecuteNonQueryAsync();
-            var result = (int)updatedCountParameter.Value;
-
+            decimal? newCashBalance = null;
             if (result == 1)
             {
+                // Revert the old transaction's cash impact and apply the new one.
+                decimal? oldRevertedBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, oldTransaction, revert: true); // oldTransaction can be null
+                newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, record, currency: "USD", startingBalance: oldRevertedBalance);
+
                 // Recalculate for the new/current product symbol.
-                await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, record.ProductSymbol);
+                await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, record.ProductSymbol!);
+                // Realize P&L for the new symbol if a position was closed.
+                newCashBalance = await HandleFuturesPnLRealizationAsync(connection, (SqlTransaction)transaction, record, newCashBalance);
 
                 // If the symbol changed, we must also recalculate the old one.
                 if (!string.IsNullOrEmpty(oldProductSymbol) && oldProductSymbol != record.ProductSymbol)
@@ -147,7 +154,7 @@ public class TransactionLoggerService
             }
 
             await transaction.CommitAsync();
-            return new Tuple<int, string>(result, result == 1 ? record.Id : null);
+            return new Tuple<int, string?, decimal?>(result, result == 1 ? record.Id : null, newCashBalance);
         }
         catch
         {
@@ -156,11 +163,11 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string>> DeleteTransactionLog(SecurityTransactionLog record)
+    public async Task<Tuple<int, string?, decimal?>> DeleteTransactionLog(SecurityTransactionLog record)
     {
         if (string.IsNullOrWhiteSpace(record?.Id))
         {
-            return new Tuple<int, string>(-1, null);
+            return new Tuple<int, string?, decimal?>(-1, null, null);
         }
 
         using var connection = new SqlConnection(this.ConnectionString);
@@ -169,34 +176,35 @@ public class TransactionLoggerService
 
         try
         {
-            // Get the product symbol before deleting.
-            var getSymbolCmd = new SqlCommand("SELECT [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [CreatedById] = @UserId AND [ClientId] = @ClientId", connection, (SqlTransaction)transaction);
-            getSymbolCmd.Parameters.AddWithValue("@Id", record.Id);
-            getSymbolCmd.Parameters.AddWithValue("@UserId", record.UserId); // The parameter name is fine, the query text was wrong.
-            getSymbolCmd.Parameters.AddWithValue("@ClientId", record.ClientId);
-            var productSymbol = await getSymbolCmd.ExecuteScalarAsync() as string;
+            // Get the full transaction details to revert its cash impact.
+            const string getOldTxSql = "SELECT * FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
+            var deletedTransaction = await connection.QuerySingleOrDefaultAsync<SecurityTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
+            var productSymbol = deletedTransaction?.ProductSymbol;
 
             // Execute the delete.
-            var sqlQuery = "EXEC [Klondike].[deleteTransactionLogNew] @Id, @ModifiedById, @ClientId, @DeletedCount OUTPUT";
-            using var command = new SqlCommand(sqlQuery, connection, (SqlTransaction)transaction);
-            command.Parameters.AddWithValue("@Id", record.Id);
-            command.Parameters.AddWithValue("@ModifiedById", record.UserId); // user id
-            command.Parameters.AddWithValue("@ClientId", record.ClientId); // client id
+            const string deleteSql = "[Klondike].[deleteTransactionLogNew]";
+            var parameters = new DynamicParameters();
+            parameters.Add("@Id", record.Id);
+            parameters.Add("@ModifiedById", record.UserId);
+            parameters.Add("@ClientId", record.ClientId);
+            parameters.Add("@DeletedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-            var deletedCountParameter = command.Parameters.Add("@DeletedCount", System.Data.SqlDbType.Int);
-            deletedCountParameter.Direction = System.Data.ParameterDirection.Output;
+            await connection.ExecuteAsync(deleteSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+            int result = parameters.Get<int>("@DeletedCount");
 
-            await command.ExecuteNonQueryAsync();
-
-            var result = (int)deletedCountParameter.Value;
-
+            decimal? newCashBalance = null;
             if (result > 0 && !string.IsNullOrEmpty(productSymbol))
             {
-                await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, productSymbol);
+                // Revert the cash impact of the deleted trade.
+                newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, deletedTransaction, revert: true);
+                
+                // Recalculate snapshots for the affected product.
+                // Note: P&L realization for deletes is complex and handled by the snapshot logic implicitly.
+                await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, productSymbol!);
             }
 
             await transaction.CommitAsync();
-            return new Tuple<int, string>(result, record.Id);
+            return new Tuple<int, string?, decimal?>(result, record.Id, newCashBalance);
         }
         catch
         {
@@ -205,130 +213,172 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string>> LogCashTransaction(CashTransactionLog record)
+    public async Task<Tuple<int, string?, decimal?>> LogCashTransaction(CashTransactionLog record)
     {
         if (record == null)
         {
-            return new Tuple<int, string>(-1, null);
+            return new Tuple<int, string?, decimal?>(-1, null, null);
         }
 
         using var connection = new SqlConnection(this.ConnectionString);
         await connection.OpenAsync();
-
-        var sqlQuery = "EXEC [Klondike].[logCashTransaction] @Date, @OperationId, @CashCategoryId, @Amount, @Notes, @CreatedById, @ClientId, @Id OUTPUT, @InsertedCount OUTPUT";
-
-        using var command = new SqlCommand(sqlQuery, connection);
-
-        command.Parameters.AddWithValue("@Date", record.Date);
-        command.Parameters.AddWithValue("@OperationId", record.OperationId);
-        command.Parameters.AddWithValue("@CashCategoryId", record.CashCategoryId);
-        command.Parameters.AddWithValue("@Amount", record.Amount);
-        command.Parameters.AddWithValue("@Notes", (object)record.Notes?.Trim() ?? DBNull.Value);
-        command.Parameters.AddWithValue("@CreatedById", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
-
-        command.Parameters.Add("@Id", System.Data.SqlDbType.VarChar, 100).Direction = System.Data.ParameterDirection.Output;
-        var insertedCountParameter = command.Parameters.Add("@InsertedCount", System.Data.SqlDbType.Int);
-        insertedCountParameter.Direction = System.Data.ParameterDirection.Output;
-
-        await command.ExecuteNonQueryAsync();
-
-        var id = Convert.ToString(command.Parameters["@Id"].Value);
-        var result = (int)insertedCountParameter.Value;
-
-        return new Tuple<int, string>(result, result == 1 ? id : null);
-    }
-
-    public async Task<Tuple<int, string>> UpdateCashTransaction(CashTransactionLog record)
-    {
-        if (record == null || string.IsNullOrWhiteSpace(record.Id))
-        {
-            return new Tuple<int, string>(-1, null);
-        }
-
-        using var connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
-
-        var sqlQuery = "EXEC [Klondike].[updateCashTransaction] @Id, @Date, @OperationId, @CashCategoryId, @Amount, @Notes, @ModifiedById, @ClientId, @UpdatedCount OUTPUT";
-        using var command = new SqlCommand(sqlQuery, connection);
-
-        command.Parameters.AddWithValue("@Id", record.Id);
-        command.Parameters.AddWithValue("@Date", record.Date);
-        command.Parameters.AddWithValue("@OperationId", record.OperationId);
-        command.Parameters.AddWithValue("@CashCategoryId", record.CashCategoryId);
-        command.Parameters.AddWithValue("@Amount", record.Amount);
-        command.Parameters.AddWithValue("@Notes", (object)record.Notes?.Trim() ?? DBNull.Value);
-        command.Parameters.AddWithValue("@ModifiedById", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
-
-        var updatedCountParameter = command.Parameters.Add("@UpdatedCount", System.Data.SqlDbType.Int);
-        updatedCountParameter.Direction = System.Data.ParameterDirection.Output;
-
-        await command.ExecuteNonQueryAsync();
-        var result = (int)updatedCountParameter.Value;
-
-        return new Tuple<int, string>(result, result == 1 ? record.Id : null);
-    }
-
-    public async Task<Tuple<int, string>> DeleteCashTransaction(CashTransactionLog record)
-    {
-        if (string.IsNullOrWhiteSpace(record?.Id))
-        {
-            return new Tuple<int, string>(-1, null);
-        }
-
-        using var connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
 
         try
         {
-            var sqlQuery = "EXEC [Klondike].[deleteCashTransaction] @Id, @ModifiedById, @ClientId, @DeletedCount OUTPUT";
-            using var command = new SqlCommand(sqlQuery, connection);
-            command.Parameters.AddWithValue("@Id", record.Id);
-            command.Parameters.AddWithValue("@ModifiedById", record.UserId);
-            command.Parameters.AddWithValue("@ClientId", record.ClientId);
+            const string sql = "[Klondike].[logCashTransaction]";
+            var parameters = new DynamicParameters();
+            parameters.Add("@Date", record.Date);
+            parameters.Add("@OperationId", record.OperationId);
+            parameters.Add("@CashCategoryId", record.CashCategoryId);
+            parameters.Add("@Amount", record.Amount);
+            parameters.Add("@Notes", record.Notes?.Trim());
+            parameters.Add("@CreatedById", record.UserId);
+            parameters.Add("@ClientId", record.ClientId);
+            parameters.Add("@Id", dbType: DbType.String, direction: ParameterDirection.Output, size: 100);
+            parameters.Add("@InsertedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
-            var deletedCountParameter = command.Parameters.Add("@DeletedCount", System.Data.SqlDbType.Int);
-            deletedCountParameter.Direction = System.Data.ParameterDirection.Output;
+            await connection.ExecuteAsync(sql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
 
-            await command.ExecuteNonQueryAsync();
+            string? id = parameters.Get<string>("@Id");
+            int result = parameters.Get<int>("@InsertedCount");
 
-            var result = (int)deletedCountParameter.Value;
+            decimal? newCashBalance = null;
+            if (result == 1)
+            {
+                newCashBalance = await UpdateCashBalanceForCashTransactionAsync(connection, (SqlTransaction)transaction, record);
+            }
 
-            return new Tuple<int, string>(result, record.Id);
+            await transaction.CommitAsync();
+            string? returnId = result == 1 ? id : null;
+            return new Tuple<int, string?, decimal?>(result, returnId, newCashBalance);
         }
         catch
         {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Tuple<int, string?, decimal?>> UpdateCashTransaction(CashTransactionLog record)
+    {
+        if (record == null || string.IsNullOrWhiteSpace(record.Id))
+        {
+            return new Tuple<int, string?, decimal?>(-1, null, null);
+        }
+
+        using var connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            const string getOldTxSql = "SELECT * FROM [Klondike].[CashTransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
+            var oldTransaction = await connection.QuerySingleOrDefaultAsync<CashTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
+
+            const string updateSql = "[Klondike].[updateCashTransaction]";
+            var parameters = new DynamicParameters();
+            parameters.Add("@Id", record.Id);
+            parameters.Add("@Date", record.Date);
+            parameters.Add("@OperationId", record.OperationId);
+            parameters.Add("@CashCategoryId", record.CashCategoryId);
+            parameters.Add("@Amount", record.Amount);
+            parameters.Add("@Notes", record.Notes?.Trim());
+            parameters.Add("@ModifiedById", record.UserId);
+            parameters.Add("@ClientId", record.ClientId);
+            parameters.Add("@UpdatedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+            await connection.ExecuteAsync(updateSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+            int result = parameters.Get<int>("@UpdatedCount");
+
+            decimal? newCashBalance = null;
+            if (result == 1)
+            {
+                // The compiler warns that oldTransaction could be null.
+                if (oldTransaction is not null)
+                {
+                    await UpdateCashBalanceForCashTransactionAsync(connection, (SqlTransaction)transaction, oldTransaction, revert: true);
+                }
+                newCashBalance = await UpdateCashBalanceForCashTransactionAsync(connection, (SqlTransaction)transaction, record);
+            }
+
+            await transaction.CommitAsync();
+            string? returnId = result == 1 ? record.Id : null;
+            return new Tuple<int, string?, decimal?>(result, returnId, newCashBalance);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
+    public async Task<Tuple<int, string?, decimal?>> DeleteCashTransaction(CashTransactionLog record)
+    {
+        if (string.IsNullOrWhiteSpace(record?.Id))
+        {
+            return new Tuple<int, string?, decimal?>(-1, null, null);
+        }
+
+        using var connection = new SqlConnection(this.ConnectionString);
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            const string getOldTxSql = "SELECT * FROM [Klondike].[CashTransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
+            var deletedTransaction = await connection.QuerySingleOrDefaultAsync<CashTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
+
+            const string deleteSql = "[Klondike].[deleteCashTransaction]";
+            var parameters = new DynamicParameters();
+            parameters.Add("@Id", record.Id);
+            parameters.Add("@ModifiedById", record.UserId);
+            parameters.Add("@ClientId", record.ClientId);
+            parameters.Add("@DeletedCount", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+            await connection.ExecuteAsync(deleteSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+            int result = parameters.Get<int>("@DeletedCount");
+
+            decimal? newCashBalance = null;
+            if (result > 0)
+            {
+                // Similarly, check if the transaction existed before trying to revert its cash impact.
+                if (deletedTransaction is not null)
+                {
+                    newCashBalance = await UpdateCashBalanceForCashTransactionAsync(connection, (SqlTransaction)transaction, deletedTransaction, revert: true);
+                }
+            }
+
+            await transaction.CommitAsync();
+            return new Tuple<int, string?, decimal?>(result, record.Id, newCashBalance);
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
             throw;
         }
     }
 
     public async Task<string> GetCashTransactionLogs(CashTransactionLog record)
     {
-        using SqlConnection connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
-
-        var sqlQuery = "EXEC [Klondike].[getCashTransactionLogs] @UserId, @ClientId, @StartDate, @EndDate";
-
-        using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@UserId", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
-        command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
-
-        return await ReadToJsonAsync(command);
+        const string sql = "EXEC [Klondike].[getCashTransactionLogs] @UserId, @ClientId, @StartDate, @EndDate";
+        using var connection = new SqlConnection(this.ConnectionString);
+        var logs = await connection.QueryAsync(sql, new
+        {
+            record.UserId,
+            record.ClientId,
+            record.StartDate,
+            record.EndDate
+        });
+        return JsonConvert.SerializeObject(logs);
     }
 
     public async Task<string> GetCashTransactionCategories()
     {
-        using SqlConnection connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
-
-        var sqlQuery = "EXEC [Klondike].[getCashTransactionCategories]";
-
-        using SqlCommand command = new SqlCommand(sqlQuery, connection);
-
-        return await ReadToJsonAsync(command);
+        const string sql = "EXEC [Klondike].[getCashTransactionCategories]";
+        using var connection = new SqlConnection(this.ConnectionString);
+        var categories = await connection.QueryAsync(sql);
+        return JsonConvert.SerializeObject(categories);
     }
 
 
@@ -388,32 +438,21 @@ public class TransactionLoggerService
 
     public async Task<string> GetTransactionLogById(SecurityTransactionLog record)
     {
-        using SqlConnection connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
-
-        var sqlQuery = "EXEC [Klondike].[getTransactionLogById] @Id, @UserId, @ClientId";
-
-        using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@Id", record.Id);
-        command.Parameters.AddWithValue("@UserId", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
-
-        return await ReadToJsonAsync(command);
+        const string sql = "EXEC [Klondike].[getTransactionLogById] @Id, @UserId, @ClientId";
+        using var connection = new SqlConnection(this.ConnectionString);
+        var log = await connection.QuerySingleOrDefaultAsync(sql, new { record.Id, record.UserId, record.ClientId });
+        return log == null ? "[]" : JsonConvert.SerializeObject(new[] { log }); // Return as array for consistency
     }
 
     public async Task<string> GetCashTransactionLogById(CashTransactionLog record)
     {
-        using SqlConnection connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
-
-        var sqlQuery = "EXEC [Klondike].[getCashTransactionLogById] @Id, @UserId, @ClientId";
-
-        using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@Id", record.Id);
-        command.Parameters.AddWithValue("@UserId", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
-
-        return await ReadToJsonAsync(command);
+        const string sql = "EXEC [Klondike].[getCashTransactionLogById] @Id, @UserId, @ClientId";
+        using var connection = new SqlConnection(this.ConnectionString);
+        var log = await connection.QuerySingleOrDefaultAsync(sql, new
+        {
+            record.Id, record.UserId, record.ClientId
+        });
+        return log == null ? "[]" : JsonConvert.SerializeObject(new[] { log }); // Return as array for consistency
     }
 
     public async Task<string> GetProductTransactionLogs(SecurityTransactionLog record)
@@ -426,8 +465,9 @@ public class TransactionLoggerService
                 [ProductCategoryId], 
                 [ProductId], 
                 [ProductSymbol], 
-                [Quantity], +                   [Price], 
-                [Fees]
+                [Quantity], 
+                [Price], 
+                [Fees] 
         FROM [Klondike].[TransactionLogs]
         WHERE [ProductSymbol] = @ProductSymbol");
 
@@ -455,7 +495,7 @@ public class TransactionLoggerService
 
         // 1. Fetch all transactions for the product, ordered chronologically.
         var sqlBuilder = new StringBuilder(@"
-            SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees]
+            SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [CreatedById] as UserId
             FROM [Klondike].[TransactionLogs]
             WHERE [ProductSymbol] = @ProductSymbol");
 
@@ -581,21 +621,29 @@ public class TransactionLoggerService
 
     public async Task<string> GetTransactionLogs(SecurityTransactionLog record)
     {
-        using SqlConnection connection = new SqlConnection(this.ConnectionString);
-        await connection.OpenAsync();
+        // Logic moved from [Klondike].[getTransactionLogs] stored procedure.
+        var sqlBuilder = new StringBuilder(@"
+            SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [Notes]
+            FROM [Klondike].[TransactionLogs]
+            WHERE [ClientId] = @ClientId AND [IsDeleted] = 0");
 
-        var sqlQuery = "EXEC [Klondike].[getTransactionLogs] @UserId, @ClientId, @ProductCategoryId, @ProductId, @ProductSymbol, @StartDate, @EndDate";
+        var parameters = new DynamicParameters();
+        parameters.Add("ClientId", record.ClientId);
 
-        using SqlCommand command = new SqlCommand(sqlQuery, connection);
-        command.Parameters.AddWithValue("@UserId", record.UserId);
-        command.Parameters.AddWithValue("@ClientId", record.ClientId);
-        command.Parameters.AddWithValue("@ProductCategoryId", (0 != record.ProductCategoryId) ? record.ProductCategoryId : DBNull.Value);
-        command.Parameters.AddWithValue("@ProductId", (0 != record.ProductId) ? record.ProductId : DBNull.Value);
-        command.Parameters.AddWithValue("@ProductSymbol", (0 != record.ProductSymbol.Length) ? record.ProductSymbol : DBNull.Value);
-        command.Parameters.AddWithValue("@StartDate", record.StartDate.HasValue ? record.StartDate.Value : DBNull.Value);
-        command.Parameters.AddWithValue("@EndDate", record.EndDate.HasValue ? record.EndDate.Value : DBNull.Value);
+        if (record.ProductCategoryId > 0) { sqlBuilder.Append(" AND [ProductCategoryId] = @ProductCategoryId"); parameters.Add("ProductCategoryId", record.ProductCategoryId); }
+        if (record.ProductId > 0) { sqlBuilder.Append(" AND [ProductId] = @ProductId"); parameters.Add("ProductId", record.ProductId); }
+        if (!string.IsNullOrEmpty(record.ProductSymbol)) { sqlBuilder.Append(" AND [ProductSymbol] = @ProductSymbol"); parameters.Add("ProductSymbol", record.ProductSymbol); }
+        if (record.StartDate.HasValue) { sqlBuilder.Append(" AND [Date] >= @StartDate"); parameters.Add("StartDate", record.StartDate.Value); }
+        if (record.EndDate.HasValue) { sqlBuilder.Append(" AND [Date] < @EndDate"); parameters.Add("EndDate", record.EndDate.Value); }
 
-        return await ReadToJsonAsync(command);
+        // The original SP had a special case for ClientId = -1001 to show all clients.
+        // This is now handled by the caller not setting a ClientId filter if needed,
+        // but we can keep the ordering logic.
+        sqlBuilder.Append(record.ClientId == -1001 ? " ORDER BY [Date] ASC;" : " ORDER BY [Date] DESC;");
+
+        using var connection = new SqlConnection(this.ConnectionString);
+        var logs = await connection.QueryAsync(sqlBuilder.ToString(), parameters);
+        return JsonConvert.SerializeObject(logs);
     }
 
     /// <summary>
@@ -609,15 +657,10 @@ public class TransactionLoggerService
 
         // 1. Get all unique combinations of user/client/product that have transactions.
         var combos = new List<(long userId, long clientId, string productSymbol)>();
-        var cmd = new SqlCommand("SELECT DISTINCT [CreatedById], [ClientId], [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [IsDeleted] = 0", connection);
-        using (var reader = await cmd.ExecuteReaderAsync())
-        {
-            while (await reader.ReadAsync())
-            {
-                combos.Add((reader.GetInt64(0), reader.GetInt64(1), reader.GetString(2)));
-            }
-        }
-
+        const string sql = "SELECT DISTINCT [CreatedById], [ClientId], [ProductSymbol] FROM [Klondike].[TransactionLogs] WHERE [IsDeleted] = 0";
+        var result = await connection.QueryAsync<(long, long, string)>(sql);
+        combos = result.ToList();
+        
         // 2. Loop through each combination and update its snapshots.
         // Note: For a very large number of products, consider running this as a background job.
         foreach (var (userId, clientId, productSymbol) in combos)
@@ -649,29 +692,174 @@ public class TransactionLoggerService
         await connection.OpenAsync();
 
         // 1. Run the OLD T-SQL procedure and get the results
-        var oldProcCmd = new SqlCommand("[Klondike].[updatePositionSnapshots]", connection);
-        oldProcCmd.CommandType = CommandType.StoredProcedure;
-        oldProcCmd.Parameters.AddWithValue("@UserId", userId);
-        oldProcCmd.Parameters.AddWithValue("@ClientId", clientId);
-        oldProcCmd.Parameters.AddWithValue("@ProductSymbol", productSymbol);
-        await oldProcCmd.ExecuteNonQueryAsync();
+        const string oldProcSql = "[Klondike].[updatePositionSnapshots]";
+        await connection.ExecuteAsync(oldProcSql, new { userId, clientId, productSymbol }, commandType: CommandType.StoredProcedure);
 
-        var getSqlResultsCmd = new SqlCommand("SELECT * FROM [Klondike].[PositionSnapshots] WHERE ClientId = @ClientId AND ProductSymbol = @ProductSymbol ORDER BY SnapshotDate", connection);
-        getSqlResultsCmd.Parameters.AddWithValue("@ClientId", clientId);
-        getSqlResultsCmd.Parameters.AddWithValue("@ProductSymbol", productSymbol);
-        string expectedJson = await ReadToJsonAsync(getSqlResultsCmd);
+        const string getSqlResultsSql = "SELECT * FROM [Klondike].[PositionSnapshots] WHERE ClientId = @ClientId AND ProductSymbol = @ProductSymbol ORDER BY SnapshotDate";
+        var sqlResults = await connection.QueryAsync(getSqlResultsSql, new { clientId, productSymbol });
+        string expectedJson = JsonConvert.SerializeObject(sqlResults);
 
         // 2. Run the NEW C# logic and get the results
         await using var transaction = await connection.BeginTransactionAsync();
         await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, userId, clientId, productSymbol);
+        
         // We can read the results before committing because we're in the same session.
-        var getCSharpResultsCmd = new SqlCommand("SELECT * FROM [Klondike].[PositionSnapshots] WHERE ClientId = @ClientId AND ProductSymbol = @ProductSymbol ORDER BY SnapshotDate", connection, (SqlTransaction)transaction);
-        getCSharpResultsCmd.Parameters.AddWithValue("@ClientId", clientId);
-        getCSharpResultsCmd.Parameters.AddWithValue("@ProductSymbol", productSymbol);
-        string actualJson = await ReadToJsonAsync(getCSharpResultsCmd);
+        const string getCSharpResultsSql = "SELECT * FROM [Klondike].[PositionSnapshots] WHERE ClientId = @ClientId AND ProductSymbol = @ProductSymbol ORDER BY SnapshotDate";
+        var csharpResults = await connection.QueryAsync(getCSharpResultsSql, new { clientId, productSymbol }, transaction);
+        string actualJson = JsonConvert.SerializeObject(csharpResults);
+        
         await transaction.RollbackAsync(); // Rollback to leave the database unchanged.
 
         return new Tuple<string, string>(expectedJson, actualJson);
+    }
+
+    private async Task<decimal?> UpdateCashBalanceForSecurityTransactionAsync(SqlConnection connection, SqlTransaction transaction, SecurityTransactionLog? record, bool revert = false, string currency = "USD", decimal? startingBalance = null)
+    {
+        if (record is null) return startingBalance;
+
+        // Step 1: Get multipliers for the product to calculate the correct gross value.
+        const string getMultipliersSql = @"
+            SELECT ISNULL(p.ContractMultiplier, 1), ISNULL(pc.Multiplier, 1)
+            FROM [Klondike].[Products] AS p
+            JOIN [Klondike].[ProductCategories] AS pc ON p.ProductCategoryId = pc.Id
+            WHERE p.ProductCategoryId = @ProductCategoryId AND p.Id = @ProductId";
+
+        var multipliers = await connection.QuerySingleOrDefaultAsync<(decimal, decimal)>(
+            getMultipliersSql, 
+            new { record.ProductCategoryId, record.ProductId }, 
+            transaction);
+
+        var (contractMultiplier, categoryMultiplier) = multipliers;
+
+        // Step 2 & 3: Determine the cash change amount. This is the most critical part.
+        decimal amountChange;
+
+        // FUTURES (ProductCategoryId = 3) have a different cash impact than other securities.
+        // The initial trade only impacts cash by the fees. The P/L is settled later.
+        if (record.ProductCategoryId == 3) 
+        {
+            amountChange = -record.Fees;
+        }
+        else
+        {
+            // For other securities (Equities, Options), the cash impact is the full value of the trade.
+            decimal grossValue = record.Quantity * record.Price * contractMultiplier * categoryMultiplier;
+
+            // BUY (OperationId = -1) decreases cash. SELL (OperationId = 1) increases cash.
+            amountChange = (record.OperationId == 1 ? grossValue : -grossValue) - record.Fees;
+        }
+
+        // If reverting, flip the sign.
+        if (revert)
+        {
+            amountChange = -amountChange;
+        }
+        
+        // If there's no actual change, no need to call the DB.
+        if (amountChange == 0) return startingBalance;
+
+        // Step 4: Call the stored procedure to update the cash balance.
+        const string updateBalanceSql = "[Klondike].[updateCashBalance]";
+        var parameters = new DynamicParameters();
+        parameters.Add("@UserId", record.UserId);
+        parameters.Add("@ClientId", record.ClientId);
+        parameters.Add("@AmountChange", amountChange);
+        parameters.Add("@Currency", currency);
+        parameters.Add("@NewBalance", dbType: DbType.Decimal, direction: ParameterDirection.Output, precision: 24, scale: 5);
+
+        await connection.ExecuteAsync(updateBalanceSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+
+        var newBalanceParam = parameters.Get<decimal?>("@NewBalance");
+
+        return newBalanceParam;
+    }
+
+    private async Task<decimal?> HandleFuturesPnLRealizationAsync(SqlConnection connection, SqlTransaction transaction, SecurityTransactionLog record, decimal? startingBalance, string currency = "USD")
+    {
+        // This logic only applies to futures products.
+        if (record.ProductCategoryId != 3 || record.ProductSymbol is null)
+        {
+            return startingBalance;
+        }
+
+        // Step 1: Get all transactions for this product to check the position.
+        var allTransactions = await GetTransactionsForSnapshotAsync(connection, transaction, record.UserId, record.ClientId, record.ProductSymbol);
+
+        // Step 2: Group transactions into lots.
+        var lots = GroupTransactionsIntoLots(allTransactions);
+        var lastLot = lots.LastOrDefault();
+
+        if (lastLot == null) return startingBalance;
+
+        // Step 3: Check if the last lot is now closed (net quantity is zero).
+        decimal netQuantity = lastLot.Sum(t => t.OperationId == -1 ? t.Quantity : -t.Quantity);
+
+        if (netQuantity == 0)
+        {
+            // Step 4: The position is closed. Calculate the realized P&L for this lot.
+            decimal realizedPL = 0;
+            foreach (var t in lastLot)
+            {
+                // GrossValue calculation, including ZB bond special logic.
+                decimal grossValue;
+                if (t.ProductCategoryId == 3 && t.ProductId == 5)
+                {
+                    grossValue = t.Quantity * ((Math.Floor(t.Price) + (t.Price - Math.Floor(t.Price)) * 100m / 32m) * 1000m);
+                }
+                else
+                {
+                    grossValue = t.Quantity * t.Price * t.ContractMultiplier * t.CategoryMultiplier;
+                }
+
+                // SELL (OpId=1) is positive P/L, BUY (OpId=-1) is negative.
+                realizedPL += (t.OperationId == 1 ? grossValue : -grossValue);
+            }
+
+            // The fees have already been accounted for trade-by-trade.
+            // The amount to change the cash balance by is the gross realized P&L.
+            if (realizedPL != 0)
+            {
+                const string updateBalanceSql = "[Klondike].[updateCashBalance]";
+                var parameters = new DynamicParameters();
+                parameters.Add("@UserId", record.UserId);
+                parameters.Add("@ClientId", record.ClientId);
+                parameters.Add("@AmountChange", realizedPL);
+                parameters.Add("@Currency", currency);
+                parameters.Add("@NewBalance", dbType: DbType.Decimal, direction: ParameterDirection.Output, precision: 24, scale: 5);
+
+                await connection.ExecuteAsync(updateBalanceSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+
+                return parameters.Get<decimal?>("@NewBalance");
+            }
+        }
+
+        return startingBalance;
+    }
+
+
+    private async Task<decimal?> UpdateCashBalanceForCashTransactionAsync(SqlConnection connection, SqlTransaction transaction, CashTransactionLog? record, bool revert = false, string currency = "USD")
+    {
+        if (record is null) return null;
+
+        // Deposit (OpId=1) increases balance, Withdrawal (OpId=-1) decreases.
+        decimal amountChange = record.Amount * record.OperationId;
+
+        if (revert)
+        {
+            amountChange = -amountChange;
+        }
+
+        const string updateBalanceSql = "[Klondike].[updateCashBalance]";
+        var parameters = new DynamicParameters();
+        parameters.Add("@UserId", record.UserId);
+        parameters.Add("@ClientId", record.ClientId);
+        parameters.Add("@AmountChange", amountChange);
+        parameters.Add("@Currency", currency);
+        parameters.Add("@NewBalance", dbType: DbType.Decimal, direction: ParameterDirection.Output, precision: 24, scale: 5);
+
+        await connection.ExecuteAsync(updateBalanceSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+        
+        return parameters.Get<decimal?>("@NewBalance");
     }
 
     private async Task UpdateSnapshotsForProductAsync(SqlConnection connection, SqlTransaction transaction, long userId, long clientId, string productSymbol)
@@ -683,10 +871,9 @@ public class TransactionLoggerService
         var snapshots = _snapshotCalculator.Calculate(userId, clientId, productSymbol, transactions);
 
         // Step 3: Delete the old snapshots for this product.
-        var deleteCmd = new SqlCommand("DELETE FROM [Klondike].[PositionSnapshots] WHERE ClientId = @ClientId AND ProductSymbol = @ProductSymbol", connection, transaction);
-        deleteCmd.Parameters.AddWithValue("@ClientId", clientId);
-        deleteCmd.Parameters.AddWithValue("@ProductSymbol", productSymbol);
-        await deleteCmd.ExecuteNonQueryAsync();
+        const string deleteSql = "DELETE FROM [Klondike].[PositionSnapshots] WHERE ClientId = @ClientId AND ProductSymbol = @ProductSymbol";
+        await connection.ExecuteAsync(deleteSql, new { clientId, productSymbol }, transaction);
+
 
         // Step 4: Bulk insert the new snapshots.
         if (snapshots.Any())
@@ -712,33 +899,13 @@ public class TransactionLoggerService
 
     private async Task<List<SecurityTransactionLog>> GetTransactionsForSnapshotAsync(SqlConnection connection, SqlTransaction transaction, long userId, long clientId, string productSymbol)
     {
-        var transactions = new List<SecurityTransactionLog>();
-        var cmd = new SqlCommand("[Klondike].[getTransactionsForSnapshot]", connection, transaction);
-        cmd.CommandType = CommandType.StoredProcedure;
-        cmd.Parameters.AddWithValue("@UserId", userId);
-        cmd.Parameters.AddWithValue("@ClientId", clientId);
-        cmd.Parameters.AddWithValue("@ProductSymbol", productSymbol);
-
-        using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            transactions.Add(new SecurityTransactionLog
-            {
-                Id = reader["Id"].ToString(),
-                Date = (DateTime)reader["Date"],
-                OperationId = (int)reader["OperationId"],
-                ProductCategoryId = (int)reader["ProductCategoryId"],
-                ProductId = (int)reader["ProductId"],
-                ProductSymbol = (string)reader["ProductSymbol"],
-                Quantity = (int)reader["Quantity"],
-                Price = (decimal)reader["Price"],
-                Fees = (decimal)reader["Fees"],
-                // Populate the extra properties needed by the calculator
-                ContractMultiplier = Convert.ToDecimal(reader["ContractMultiplier"]),
-                CategoryMultiplier = Convert.ToDecimal(reader["CategoryMultiplier"])
-            });
-        }
-        return transactions;
+        const string sql = "[Klondike].[getTransactionsForSnapshot]";
+        var transactions = await connection.QueryAsync<SecurityTransactionLog>(
+            sql, 
+            new { userId, clientId, productSymbol }, 
+            transaction, 
+            commandType: CommandType.StoredProcedure);
+        return transactions.ToList();
     }
 
     private static DataTable ToDataTable<T>(IList<T> data)
@@ -812,46 +979,63 @@ public class TransactionLoggerService
         return lots;
     }
 
-    private async Task<string> ReadToJsonAsync(SqlCommand command)
-    {
-        using var reader = await command.ExecuteReaderAsync();
-        if (!reader.HasRows)
-        {
-            return "[]";
-        }
-
-        var jsonBuilder = new StringBuilder("[");
-
-        var columns = new string[reader.FieldCount];
-        for (int i = 0; i < reader.FieldCount; i++)
-        {
-            columns[i] = reader.GetName(i);
-        }
-
-        var firstRow = true;
-        while (await reader.ReadAsync())
-        {
-            if (!firstRow)
-            {
-                jsonBuilder.Append(',');
-            }
-            firstRow = false;
-
-            jsonBuilder.Append('{');
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                // Using JsonConvert to handle proper escaping and type formatting (numbers, strings, dates, etc.)
-                var value = JsonConvert.SerializeObject(reader[i]);
-                jsonBuilder.AppendFormat("\"{0}\":{1}{2}", columns[i], value, i < reader.FieldCount - 1 ? "," : "");
-            }
-            jsonBuilder.Append('}');
-        }
-
-        return jsonBuilder.Append(']').ToString();
-    }
 
     string ConnectionString { get; }
 
 } /* end class TransactionLoggerService */
+
+internal static class SqlDataReaderExtensions
+{
+    public static SecurityTransactionLog? ToSecurityTransactionLog(this SqlDataReader reader)
+    {
+        if (!reader.HasRows) return null;
+
+        reader.Read(); // Move to the first row
+
+        // Helper to get value or default
+        T? GetValue<T>(string columnName)
+        {
+            var value = reader[columnName];
+            return value == DBNull.Value ? default : (T)value;
+        }
+
+        return new SecurityTransactionLog
+        {
+            Id = GetValue<string>("Id"),
+            Date = GetValue<DateTime>("Date"),
+            OperationId = GetValue<int>("OperationId"),
+            ProductCategoryId = GetValue<int>("ProductCategoryId"),
+            ProductId = GetValue<int>("ProductId"),
+            ProductSymbol = GetValue<string>("ProductSymbol"),
+            Quantity = GetValue<int>("Quantity"),
+            Price = GetValue<decimal>("Price"),
+            Fees = GetValue<decimal>("Fees"),
+            UserId = GetValue<long>("CreatedById") // Assuming the original creator is the user context we need
+        };
+    }
+
+    public static CashTransactionLog? ToCashTransactionLog(this SqlDataReader reader)
+    {
+        if (!reader.HasRows) return null;
+
+        reader.Read(); // Move to the first row
+
+        T? GetValue<T>(string columnName)
+        {
+            var value = reader[columnName];
+            return value == DBNull.Value ? default : (T)value;
+        }
+
+        return new CashTransactionLog
+        {
+            Id = GetValue<string>("Id"),
+            Date = GetValue<DateTime>("Date"),
+            OperationId = GetValue<int>("OperationId"),
+            CashCategoryId = GetValue<int>("CashCategoryId"),
+            Amount = GetValue<decimal>("Amount"),
+            UserId = GetValue<long>("CreatedById")
+        };
+    }
+}
 
 } /* end FalxGroup.Finance.Service namespace */

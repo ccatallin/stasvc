@@ -40,7 +40,7 @@ public class TransactionLog
     }
 
    [DataMember(Name = "id")]
-    public string Id { get; set; }
+    public string? Id { get; set; }
 
     [DataMember(Name = "date")]
     public DateTime Date { get; set; }
@@ -56,7 +56,7 @@ public class TransactionLog
     public int ProductId { get; set; }
 
     [DataMember(Name = "product_symbol")]
-    public string ProductSymbol { get; set; }
+    public string? ProductSymbol { get; set; }
 
     [DataMember(Name = "quantity")]
     public int Quantity { get; set; }
@@ -68,7 +68,7 @@ public class TransactionLog
     public decimal Fees { get; set; }
 
     [DataMember(Name = "notes")]
-    public string Notes { get; set; }
+    public string? Notes { get; set; }
 
 
     [DataMember(Name = "user_id")]
@@ -81,7 +81,7 @@ public class TransactionLog
     public long UserAccountId { get; set; }
 
     [DataMember(Name = "application_key")]
-    public string ApplicationKey { get; set; }
+    public string? ApplicationKey { get; set; }
 
     [DataMember(Name = "get_request_id")]
     public int GetRequestId { get; set; }

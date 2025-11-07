@@ -1,31 +1,32 @@
 using System.Text;
 using System.Threading.Tasks;
-// --
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-// --
+using System.Net;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 // --
 using FalxGroup.Finance.Service;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class Ticker
+    public class Ticker
     {
-        private static string version = "1.0.4";
+        private const string version = "2.0.0-isolated";
         private static TickerService processor = new TickerService(5);
+        private readonly ILogger _logger;
 
-        [FunctionName("Ticker")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/ticker/{symbol:alpha?}/{market:alpha?}")] HttpRequest req,
-            ExecutionContext executionContext,
-            ILogger log,
-            string symbol,
-            string market)
+        public Ticker(ILoggerFactory loggerFactory)
         {
-            var response = await Ticker.processor.Run(log, executionContext.FunctionName, version, symbol, market);
+            _logger = loggerFactory.CreateLogger<Ticker>();
+        }
+
+        [Function("Ticker")]
+        public async Task<HttpResponseData> Run(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/ticker/{symbol:alpha?}/{market:alpha?}")] HttpRequestData req,
+            string? symbol,
+            string? market)
+        {
+            var response = await Ticker.processor.Run(_logger, nameof(Ticker), version, symbol, market);
 
             StringBuilder responseBuilder = new StringBuilder();
 
@@ -40,7 +41,10 @@ namespace FalxGroup.Finance.Function
 
             responseBuilder.Append("}");
 
-            return new OkObjectResult(responseBuilder.ToString());
+            var httpResponse = req.CreateResponse(HttpStatusCode.OK);
+            httpResponse.Headers.Add("Content-Type", "application/json; charset=utf-8");
+            await httpResponse.WriteStringAsync(responseBuilder.ToString());
+            return httpResponse;
         }
 
     }

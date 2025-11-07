@@ -8,7 +8,7 @@ public class QueryResponse
 
     }
 
-    public QueryResponse(int statusCode, string message, string symbol, string market = null, string value = null)
+    public QueryResponse(int statusCode, string message, string? symbol = null, string? market = null, string? value = null)
     {
         this.StatusCode = statusCode;
         this.Message = message;
@@ -20,12 +20,12 @@ public class QueryResponse
     }
 
     public int StatusCode { get; set; }
-    public string Message { get; set; }
+    public string? Message { get; set; }
     
-    public string Symbol { get; set; }
-    public string MarketSymbol { get; set; }
+    public string? Symbol { get; set; }
+    public string? MarketSymbol { get; set; }
 
-    public string Value { get; set; }
+    public string? Value { get; set; }
 
 } /* end class QueryResponse */
 

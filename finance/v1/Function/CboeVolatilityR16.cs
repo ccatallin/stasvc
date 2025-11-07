@@ -1,12 +1,9 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
-// --
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
-// --
+using System.Net;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 // --
 using FalxGroup.Finance.Service;
@@ -14,10 +11,16 @@ using System.Linq;
 
 namespace FalxGroup.Finance.Function
 {
-    public static class CboeVolatilityR16
+    public class CboeVolatilityR16
     {
-        private static string version = "1.0.1";
+        private const string version = "2.0.0-isolated";
+        private readonly ILogger _logger;
 
+        public CboeVolatilityR16(ILoggerFactory loggerFactory)
+        {
+            _logger = loggerFactory.CreateLogger<CboeVolatilityR16>();
+        }
+        
         private const string cboeIndexesMarketTicker = "INDEXCBOE";
         /*
             This function is used to apply the rule of 16 for the following CBOE indexes VIX, VVIX, VXN, VXD, RVX, MOVE, GVZ and OVX
@@ -26,21 +29,20 @@ namespace FalxGroup.Finance.Function
 
         private static TickerService processor = new TickerService(5);
 
-        [FunctionName("CboeVolatilityR16")]
-        public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/cboe_volatility_r16/{symbol:alpha?}")] HttpRequest req,
-            ExecutionContext executionContext,
-            ILogger log, 
-            string symbol)
+        [Function("CboeVolatilityR16")]
+        public async Task<HttpResponseData> Run(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", /* "post", */ Route = "finance/v1/cboe_volatility_r16/{symbol:alpha?}")] HttpRequestData req,
+            string? symbol)
         {
             StringBuilder responseBuilder = new StringBuilder("");
+            var functionName = nameof(CboeVolatilityR16);
 
             try
             {
                 var indexSymbol = (string.IsNullOrEmpty(symbol) ? "VIX" : symbol.ToUpper());
 
-                var response = await CboeVolatilityR16.processor.Run(log, 
-                    executionContext.FunctionName, version, 
+                var response = await CboeVolatilityR16.processor.Run(_logger, 
+                    functionName, version, 
                     (cboeIndexes.Any(validSymbol => validSymbol == indexSymbol) ? indexSymbol : "VIX"), 
                     cboeIndexesMarketTicker);
 
@@ -50,14 +52,14 @@ namespace FalxGroup.Finance.Function
 
                 if ((200 == response.StatusCode) || (201 == response.StatusCode))
                 {
-                    responseBuilder.Append(", \"").Append(response.Symbol).Append("\": ").Append(response.Value);
+                    responseBuilder.Append(", \"").Append(response.Symbol).Append("\": ").Append(response.Value ?? "0");
 
                     responseBuilder.Append(", \"daily expected volatility +/- (%)\": ")
-                        .Append((Double.Parse(response.Value) / Math.Sqrt(252)).ToString("0.00"));
+                        .Append((Double.Parse(response.Value ?? "0") / Math.Sqrt(252)).ToString("0.00"));
                     responseBuilder.Append(", \"weekly expected volatility +/- (%)\": ")
-                        .Append((Double.Parse(response.Value) / Math.Sqrt(52)).ToString("0.00"));
+                        .Append((Double.Parse(response.Value ?? "0") / Math.Sqrt(52)).ToString("0.00"));
                     responseBuilder.Append(", \"monthly expected volatility +/- (%)\": ")
-                        .Append((Double.Parse(response.Value) / Math.Sqrt(12)).ToString("0.00"));
+                        .Append((Double.Parse(response.Value ?? "0") / Math.Sqrt(12)).ToString("0.00"));
                     responseBuilder.Append(", \"yearly expected volatility +/- (%)\": ")
                         .Append(response.Value);
                 }
@@ -66,10 +68,13 @@ namespace FalxGroup.Finance.Function
             }
             catch (Exception exception)
             {
-                log.LogError(exception: exception, exception.Message);
+                _logger.LogError(exception: exception, exception.Message);
             }
 
-            return new OkObjectResult(responseBuilder.ToString());
+            var httpResponse = req.CreateResponse(HttpStatusCode.OK);
+            httpResponse.Headers.Add("Content-Type", "application/json; charset=utf-8");
+            await httpResponse.WriteStringAsync(responseBuilder.ToString());
+            return httpResponse;
         }
     }
 }

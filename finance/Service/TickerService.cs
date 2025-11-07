@@ -24,18 +24,18 @@ public class TickerService
         googleFinanceHttpQuery = new cc.net.HttpQuery("https://www.google.com/finance/quote/");
     }
 
-    public async Task<QueryResponse> Run(ILogger log, string functionName, string version, string symbol, string market = null)
+    public async Task<QueryResponse> Run(ILogger log, string functionName, string version, string? symbol, string? market = null)
     {
         bool symbolInCache = false;
 
-        QueryResponse queryResponse = null;
+        QueryResponse? queryResponse = null;
 
         try 
         {
             if (string.IsNullOrEmpty(symbol))
             {
                 queryResponse = new QueryResponse(204, 
-                    $"{functionName} version {version}", 
+                    $"{functionName} version {version}",
                     string.Empty);
             }
             else
@@ -77,7 +77,7 @@ public class TickerService
 
         return queryResponse;
     }
-
+    
     private async Task<QueryResponse> QueryGoogleFinance(string symbol, string market, bool symbolInCache)
     {
         QueryResponse response = new QueryResponse(200, message: string.Empty, symbol: symbol, market: market);
