@@ -17,7 +17,7 @@ namespace FalxGroup.Finance.Function
 {
     public class SecurityTransactionLogger
     {
-        private const string version = "2.0.0-isolated";
+        private const string version = "2.0.1-isolated";
         private readonly ILogger _logger;
         private readonly TransactionLoggerService _processor;
 
@@ -85,17 +85,17 @@ namespace FalxGroup.Finance.Function
                             if (1 == response.Item1)
                             {
                                 statusCode = HttpStatusCode.Created;
-                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
+                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = (int)statusCode, CashBalance = response.Item3 });
                             }
                             else if (-2 == response.Item1)
                             {
                                 statusCode = HttpStatusCode.Conflict;
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"A product named '{record.ProductSymbol ?? "unknown"}' already exists with a different category or type." });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"A product named '{record.ProductSymbol ?? "unknown"}' already exists with a different category or type." });
                             }
                             else
                             {
                                 statusCode = HttpStatusCode.InternalServerError;
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records inserted {response.Item1}" });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"METHOD {req.Method} Records inserted {response.Item1}" });
                             }
 
                             break;
@@ -106,17 +106,17 @@ namespace FalxGroup.Finance.Function
                             if (1 == response.Item1)
                             {
                                 statusCode = HttpStatusCode.OK;
-                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
+                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = (int)statusCode, CashBalance = response.Item3 });
                             }
                             else if (-2 == response.Item1)
                             {
                                 statusCode = HttpStatusCode.Conflict;
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Updating this transaction for product '{record.ProductSymbol ?? "unknown"}' would create a conflict with an existing product's category or type." });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Updating this transaction for product '{record.ProductSymbol ?? "unknown"}' would create a conflict with an existing product's category or type." });
                             }
                             else
                             {
                                 statusCode = HttpStatusCode.InternalServerError;
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"METHOD {req.Method} Records updated {response.Item1}" });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"METHOD {req.Method} Records updated {response.Item1}" });
                             }
 
                             break;
@@ -127,12 +127,12 @@ namespace FalxGroup.Finance.Function
                             if (1 == response.Item1)
                             {
                                 statusCode = HttpStatusCode.OK;
-                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
+                                responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = (int)statusCode, CashBalance = response.Item3 });
                             }
                             else
                             {
                                 statusCode = HttpStatusCode.InternalServerError;
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Records deleted {response.Item1}" });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Records deleted {response.Item1}" });
                             }
 
                             break;
@@ -147,12 +147,12 @@ namespace FalxGroup.Finance.Function
                                     if (jsonTransactionLogs.IsNullOrEmpty() || jsonTransactionLogs == "[]")
                                     {
                                         statusCode = HttpStatusCode.NoContent;
-                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                     }
                                     else
                                     {
                                         statusCode = HttpStatusCode.OK;
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonTransactionLogs}}}";
+                                        responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"ReportData\": {jsonTransactionLogs}}}";
                                     }
 
                                     break;
@@ -163,7 +163,7 @@ namespace FalxGroup.Finance.Function
                                     if (jsonOpenPositions.IsNullOrEmpty() || jsonOpenPositions == "[]")
                                     {
                                         statusCode = HttpStatusCode.NoContent;
-                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                     }
                                     else
                                     {
@@ -179,12 +179,12 @@ namespace FalxGroup.Finance.Function
                                     if (jsonProductTransactionLogs.IsNullOrEmpty() || jsonProductTransactionLogs == "[]")
                                     {
                                         statusCode = HttpStatusCode.NoContent;
-                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                     }
                                     else
                                     {
                                         statusCode = HttpStatusCode.OK;
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"ProductTransactionLogs\": {jsonProductTransactionLogs}}}";
+                                        responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"ProductTransactionLogs\": {jsonProductTransactionLogs}}}";
                                     }
 
                                     break;
@@ -195,12 +195,12 @@ namespace FalxGroup.Finance.Function
                                     if (jsonReportData.IsNullOrEmpty() || jsonReportData == "[]")
                                     {
                                         statusCode = HttpStatusCode.NoContent;
-                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                     }
                                     else
                                     {
                                         statusCode = HttpStatusCode.OK;
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonReportData}}}";
+                                        responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"ReportData\": {jsonReportData}}}";
                                     }
 
                                     break;
@@ -211,12 +211,12 @@ namespace FalxGroup.Finance.Function
                                     if (jsonOpenPositionTransactionLogs.IsNullOrEmpty() || jsonOpenPositionTransactionLogs == "[]")
                                     {
                                         statusCode = HttpStatusCode.NoContent;
-                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                     }
                                     else
                                     {
                                         statusCode = HttpStatusCode.OK;
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositionTransactionLogs\": {jsonOpenPositionTransactionLogs}}}";
+                                        responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"OpenPositionTransactionLogs\": {jsonOpenPositionTransactionLogs}}}";
                                     }
 
                                     break;
@@ -227,12 +227,12 @@ namespace FalxGroup.Finance.Function
                                     if (jsonTransactionLog.IsNullOrEmpty() || jsonTransactionLog == "[]")
                                     {
                                         statusCode = HttpStatusCode.NoContent;
-                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                     }
                                     else
                                     {
                                         statusCode = HttpStatusCode.OK;
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"TransactionLog\": {jsonTransactionLog}}}";
+                                        responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"TransactionLog\": {jsonTransactionLog}}}";
                                     }
 
                                     break;
@@ -240,7 +240,7 @@ namespace FalxGroup.Finance.Function
                                 default:
                                 {
                                     statusCode = HttpStatusCode.OK;
-                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} METHOD {req.Method} version {version}" });
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"{functionName} METHOD {req.Method} version {version}" });
 
                                     break;
                                 }
@@ -255,12 +255,12 @@ namespace FalxGroup.Finance.Function
                     if (req.Method.Equals("GET"))
                     {
                         statusCode = HttpStatusCode.OK;
-                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} version {version}" });
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"{functionName} version {version}" });
                     }
                     else
                     {
                         statusCode = HttpStatusCode.Unauthorized;
-                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} version {version} METHOD {req.Method} INVALID KEY" });
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"{functionName} version {version} METHOD {req.Method} INVALID KEY" });
                     }
                 }
             }
@@ -269,7 +269,7 @@ namespace FalxGroup.Finance.Function
                 statusCode = HttpStatusCode.InternalServerError;
                 responseMessage = JsonConvert.SerializeObject(new
                 {
-                    StatusCode = statusCode,
+                    StatusCode = (int)statusCode,
                     Message = $"{functionName} version {version} METHOD {req.Method} ERROR: {exception.Message}"
                 });
                 _logger.LogError(exception, exception.Message);

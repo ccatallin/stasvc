@@ -15,7 +15,7 @@ namespace FalxGroup.Finance.Function
 {
     public class CashTransactionLogger
     {
-        private const string version = "2.0.0-isolated";
+        private const string version = "2.0.1-isolated";
         private readonly ILogger _logger;
         private readonly TransactionLoggerService _processor;
 
@@ -80,12 +80,12 @@ namespace FalxGroup.Finance.Function
                         if (response.Item1 == 1)
                         {
                             statusCode = HttpStatusCode.Created;
-                            responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
+                            responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = (int)statusCode, CashBalance = response.Item3 });
                         }
                         else
                         {
                             statusCode = HttpStatusCode.InternalServerError;
-                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Failed to create record. Records inserted: {response.Item1}" });
+                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Failed to create record. Records inserted: {response.Item1}" });
                         }
                         break;
                     }
@@ -95,12 +95,12 @@ namespace FalxGroup.Finance.Function
                         if (response.Item1 == 1)
                         {
                             statusCode = HttpStatusCode.OK;
-                            responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
+                            responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = (int)statusCode, CashBalance = response.Item3 });
                         }
                         else
                         {
                             statusCode = HttpStatusCode.NotFound; // Not Found, or use 500 if it's a general failure
-                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Record not found or failed to update. Records updated: {response.Item1}" });
+                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Record not found or failed to update. Records updated: {response.Item1}" });
                         }
                         break;
                     }
@@ -110,12 +110,12 @@ namespace FalxGroup.Finance.Function
                         if (response.Item1 == 1)
                         {
                             statusCode = HttpStatusCode.OK;
-                            responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = statusCode, CashBalance = response.Item3 });
+                            responseMessage = JsonConvert.SerializeObject(new { Id = response.Item2, StatusCode = (int)statusCode, CashBalance = response.Item3 });
                         }
                         else
                         {
                             statusCode = HttpStatusCode.NotFound;
-                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Record not found or failed to delete. Records deleted: {response.Item1}" });
+                            responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Record not found or failed to delete. Records deleted: {response.Item1}" });
                         }
                         break;
                     }
@@ -129,12 +129,12 @@ namespace FalxGroup.Finance.Function
                                 if (string.IsNullOrEmpty(jsonCashTransactionLogs) || jsonCashTransactionLogs == "[]")
                                 {
                                     statusCode = HttpStatusCode.NoContent;
-                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                 }
                                 else
                                 {
                                     statusCode = HttpStatusCode.OK;
-                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"ReportData\": {jsonCashTransactionLogs}}}";
+                                    responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"ReportData\": {jsonCashTransactionLogs}}}";
                                 }
                                 
                                 break;
@@ -145,12 +145,12 @@ namespace FalxGroup.Finance.Function
                                 if (string.IsNullOrEmpty(jsonCashTransactionCategories) || jsonCashTransactionCategories == "[]")
                                 {
                                     statusCode = HttpStatusCode.NoContent;
-                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                 }
                                 else
                                 {
                                     statusCode = HttpStatusCode.OK;
-                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"Categories\": {jsonCashTransactionCategories}}}";
+                                    responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"Categories\": {jsonCashTransactionCategories}}}";
                                 }
                                 break;
                             }
@@ -160,12 +160,12 @@ namespace FalxGroup.Finance.Function
                                 if (jsonCashTransactionLog.IsNullOrEmpty() || jsonCashTransactionLog == "[]")
                                 {
                                     statusCode = HttpStatusCode.NoContent;
-                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode });
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
                                 }
                                 else
                                 {
                                     statusCode = HttpStatusCode.OK;
-                                    responseMessage = $"{{\"StatusCode\": {statusCode}, \"CashTransactionLog\": {jsonCashTransactionLog}}}";
+                                    responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"CashTransactionLog\": {jsonCashTransactionLog}}}";
                                 }
 
                                 break;
@@ -173,7 +173,7 @@ namespace FalxGroup.Finance.Function
                             default:
                             {
                                 statusCode = HttpStatusCode.OK;
-                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"{functionName} METHOD {req.Method} version {version}" });
+                                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"{functionName} METHOD {req.Method} version {version}" });
 
                                 break;                             
                             }
@@ -184,7 +184,7 @@ namespace FalxGroup.Finance.Function
                     default:
                     {
                         statusCode = HttpStatusCode.MethodNotAllowed;
-                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Method {req.Method} not allowed." });
+                        responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Method {req.Method} not allowed." });
 
                         break;
                     }
@@ -193,7 +193,7 @@ namespace FalxGroup.Finance.Function
             catch (JsonException jsonEx)
             {
                 statusCode = HttpStatusCode.BadRequest;
-                responseMessage = JsonConvert.SerializeObject(new { StatusCode = statusCode, Message = $"Invalid JSON format: {jsonEx.Message}" });
+                responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode, Message = $"Invalid JSON format: {jsonEx.Message}" });
                 _logger.LogWarning(jsonEx, "JSON parsing error.");
             }
             catch (Exception exception)
@@ -201,7 +201,7 @@ namespace FalxGroup.Finance.Function
                 statusCode = HttpStatusCode.InternalServerError;
                 responseMessage = JsonConvert.SerializeObject(new
                 {
-                    StatusCode = statusCode,
+                    StatusCode = (int)statusCode,
                     Message = $"{functionName} v{version} ERROR: {exception.Message}"
                 });
                 _logger.LogError(exception, exception.Message);
