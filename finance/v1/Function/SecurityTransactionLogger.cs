@@ -167,8 +167,8 @@ namespace FalxGroup.Finance.Function
                                     }
                                     else
                                     {
-                                        statusCode = HttpStatusCode.OK;
-                                        responseMessage = $"{{\"StatusCode\": {statusCode}, \"OpenPositions\": {jsonOpenPositions}}}";
+                                        statusCode = HttpStatusCode.OK; // This is 200
+                                        responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"OpenPositions\": {jsonOpenPositions}}}";
                                     }
 
                                     break;
