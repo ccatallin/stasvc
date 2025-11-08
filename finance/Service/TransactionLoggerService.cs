@@ -383,10 +383,11 @@ public class TransactionLoggerService
 
     public async Task<string> GetCashBalance(CashTransactionLog record)
     {
-        const string sql = "EXEC [Klondike].[getCashBalance] @ClientId";
+        const string sql = "EXEC [Klondike].[getCashBalance] @UserId, @ClientId";
         using var connection = new SqlConnection(this.ConnectionString);
         var balance = await connection.QueryAsync(sql, new
         {
+            record.UserId,
             record.ClientId
         });
         // The query might return multiple rows if there are multiple currencies.
