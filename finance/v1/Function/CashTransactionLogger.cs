@@ -15,7 +15,7 @@ namespace FalxGroup.Finance.Function
 {
     public class CashTransactionLogger
     {
-        private const string version = "2.0.1-isolated";
+        private const string version = "2.0.2-isolated";
         private readonly ILogger _logger;
         private readonly TransactionLoggerService _processor;
 
@@ -151,6 +151,21 @@ namespace FalxGroup.Finance.Function
                                 {
                                     statusCode = HttpStatusCode.OK;
                                     responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"Categories\": {jsonCashTransactionCategories}}}";
+                                }
+                                break;
+                            }
+                            case 3: // get cash cash balance
+                            {
+                                string jsonCashBalance = await _processor.GetCashBalance(record);
+                                if (string.IsNullOrEmpty(jsonCashBalance) || jsonCashBalance == "[]")
+                                {
+                                    statusCode = HttpStatusCode.NoContent;
+                                    responseMessage = JsonConvert.SerializeObject(new { StatusCode = (int)statusCode });
+                                }
+                                else
+                                {
+                                    statusCode = HttpStatusCode.OK;
+                                    responseMessage = $"{{\"StatusCode\": {(int)statusCode}, \"CashBalance\": {jsonCashBalance}}}";
                                 }
                                 break;
                             }

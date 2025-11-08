@@ -381,6 +381,19 @@ public class TransactionLoggerService
         return JsonConvert.SerializeObject(categories);
     }
 
+    public async Task<string> GetCashBalance(CashTransactionLog record)
+    {
+        const string sql = "EXEC [Klondike].[getCashBalance] @ClientId";
+        using var connection = new SqlConnection(this.ConnectionString);
+        var balance = await connection.QueryAsync(sql, new
+        {
+            record.ClientId
+        });
+        // The query might return multiple rows if there are multiple currencies.
+        // The result is serialized as a JSON array.
+        return JsonConvert.SerializeObject(balance);
+    }
+
 
     public async Task<string> GetOpenPositions(SecurityTransactionLog record)
     {
