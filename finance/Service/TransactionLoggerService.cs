@@ -652,7 +652,7 @@ public class TransactionLoggerService
         // The original SP had a special case for ClientId = -1001 to show all clients.
         // This is now handled by the caller not setting a ClientId filter if needed,
         // but we can keep the ordering logic.
-        sqlBuilder.Append(record.ClientId == -1001 ? " ORDER BY [Date] ASC;" : " ORDER BY [Date] DESC;");
+        sqlBuilder.Append(" ORDER BY [Date] ASC;");
 
         using var connection = new SqlConnection(this.ConnectionString);
         var logs = await connection.QueryAsync(sqlBuilder.ToString(), parameters);
