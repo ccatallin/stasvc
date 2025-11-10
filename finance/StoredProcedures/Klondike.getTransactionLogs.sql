@@ -29,7 +29,8 @@ BEGIN
 
 	    FROM [Klondike].[TransactionLogs] AS TL 
 		
-            WHERE ((TL.[ClientID] = @ClientId) AND
+            WHERE ((TL.[ClientId] = @ClientId) AND
+                   (TL.[CreatedById] = @UserId) AND
                    (@ProductCategoryId IS NULL OR TL.[ProductCategoryId] = @ProductCategoryId) AND
                    (@ProductId IS NULL OR TL.[ProductId] = @ProductId) AND
                    (@ProductSymbol IS NULL OR TL.[ProductSymbol] = @ProductSymbol) AND

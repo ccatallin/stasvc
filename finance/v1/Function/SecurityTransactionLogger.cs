@@ -17,7 +17,7 @@ namespace FalxGroup.Finance.Function
 {
     public class SecurityTransactionLogger
     {
-        private const string version = "2.0.1-isolated";
+        private const string version = "2.0.3-isolated";
         private readonly ILogger _logger;
         private readonly TransactionLoggerService _processor;
 

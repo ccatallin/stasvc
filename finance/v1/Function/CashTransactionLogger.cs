@@ -15,7 +15,7 @@ namespace FalxGroup.Finance.Function
 {
     public class CashTransactionLogger
     {
-        private const string version = "2.0.2-isolated";
+        private const string version = "2.0.3-isolated";
         private readonly ILogger _logger;
         private readonly TransactionLoggerService _processor;
 

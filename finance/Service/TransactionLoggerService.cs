@@ -409,7 +409,7 @@ public class TransactionLoggerService
                         ps.[AveragePrice],
                         ROW_NUMBER() OVER(PARTITION BY ps.ProductSymbol ORDER BY ps.SnapshotDate DESC) as rn
                     FROM [Klondike].[PositionSnapshots] AS ps WITH (NOLOCK)
-                    WHERE (ps.[ClientId] = @ClientId)
+                    WHERE (ps.[UserId] = @UserId) AND (ps.[ClientId] = @ClientId)
             )
             SELECT  [ProductCategoryId],
                     [ProductId],
@@ -423,7 +423,12 @@ public class TransactionLoggerService
                     WHERE rn = 1 AND [Quantity] <> 0;";
 
         using var connection = new SqlConnection(this.ConnectionString);
-        var openPositions = (await connection.QueryAsync<OpenPositionViewModel>(sqlQuery, new { record.ClientId })).ToList();
+        var openPositions = (await connection.QueryAsync<OpenPositionViewModel>(sqlQuery,
+        new
+        {
+            record.UserId,
+            record.ClientId
+        })).ToList();
 
         // Apply presentation-layer transformations after fetching the data.
         foreach (var position in openPositions)
@@ -511,18 +516,12 @@ public class TransactionLoggerService
         var sqlBuilder = new StringBuilder(@"
             SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [CreatedById] as UserId
             FROM [Klondike].[TransactionLogs]
-            WHERE [ProductSymbol] = @ProductSymbol");
+            WHERE ([ProductSymbol] = @ProductSymbol) AND ([CreatedById] = @UserId) AND ([ClientId] = @ClientId) ORDER BY [Date] ASC, [Id] ASC;");
 
         var parameters = new DynamicParameters();
         parameters.Add("ProductSymbol", record.ProductSymbol);
-
-        if (record.ClientId != -1001)
-        {
-            sqlBuilder.Append(" AND [ClientID] = @ClientId");
-            parameters.Add("ClientId", record.ClientId);
-        }
-
-        sqlBuilder.Append(" ORDER BY [Date] ASC, [Id] ASC;");
+        parameters.Add("UserId", record.UserId);
+        parameters.Add("ClientId", record.ClientId);
 
         using var connection = new SqlConnection(this.ConnectionString);
         var allTransactions = (await connection.QueryAsync<SecurityTransactionLog>(sqlBuilder.ToString(), parameters)).ToList();
@@ -552,9 +551,10 @@ public class TransactionLoggerService
             FROM [Klondike].[TransactionLogs] AS tl
             LEFT JOIN [Klondike].[ProductCategories] AS pc ON tl.ProductCategoryId = pc.Id
             LEFT JOIN [Klondike].[Products] AS p ON tl.ProductId = p.Id AND tl.ProductCategoryId = p.ProductCategoryId
-            WHERE tl.ClientId = @ClientId AND tl.IsDeleted = 0");
+            WHERE tl.CreatedById = @UserId AND tl.ClientId = @ClientId AND tl.IsDeleted = 0");
 
         var parameters = new DynamicParameters();
+        parameters.Add("UserId", record.UserId);
         parameters.Add("ClientId", record.ClientId);
 
         if (record.ProductCategoryId > 0) { sqlBuilder.Append(" AND tl.ProductCategoryId = @ProductCategoryId"); parameters.Add("ProductCategoryId", record.ProductCategoryId); }
@@ -639,9 +639,10 @@ public class TransactionLoggerService
         var sqlBuilder = new StringBuilder(@"
             SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [Notes]
             FROM [Klondike].[TransactionLogs]
-            WHERE [ClientId] = @ClientId AND [IsDeleted] = 0");
+            WHERE [CreatedById] = @UserId AND [ClientId] = @ClientId AND [IsDeleted] = 0");
 
         var parameters = new DynamicParameters();
+        parameters.Add("UserId", record.UserId);
         parameters.Add("ClientId", record.ClientId);
 
         if (record.ProductCategoryId > 0) { sqlBuilder.Append(" AND [ProductCategoryId] = @ProductCategoryId"); parameters.Add("ProductCategoryId", record.ProductCategoryId); }
