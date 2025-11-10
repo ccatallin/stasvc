@@ -21,6 +21,6 @@ BEGIN
     -- Also, we should not return logically deleted records.
     SELECT *
     FROM [Klondike].[TransactionLogs]
-    WHERE [Id] = @Id AND [ClientId] = @ClientId AND [IsDeleted] = 0;
+    WHERE [Id] = @Id AND [CreatedById] = @UserId AND [ClientId] = @ClientId;
 END
 GO

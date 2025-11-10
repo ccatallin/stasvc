@@ -452,7 +452,7 @@ public class TransactionLoggerService
             p.TotalCost
         });
 
-        return JsonConvert.SerializeObject(result);
+        return result.Any() ? JsonConvert.SerializeObject(result) : string.Empty;
     }
 
     public async Task<string> GetTransactionLogById(SecurityTransactionLog record)
@@ -488,19 +488,12 @@ public class TransactionLoggerService
                 [Price], 
                 [Fees] 
         FROM [Klondike].[TransactionLogs]
-        WHERE [ProductSymbol] = @ProductSymbol");
+        WHERE [ProductSymbol] = @ProductSymbol AND [CreatedById] = @UserId AND [ClientID] = @ClientId ORDER BY [Date] ASC;");
 
         var parameters = new DynamicParameters();
         parameters.Add("ProductSymbol", record.ProductSymbol);
-
-        // The SP had a special case for ClientId = -1001 to show all clients.
-        if (record.ClientId != -1001)
-        {
-            sqlBuilder.Append(" AND [ClientID] = @ClientId");
-            parameters.Add("ClientId", record.ClientId);
-        }
-
-        sqlBuilder.Append(record.ClientId == -1001 ? " ORDER BY [Date] ASC;" : " ORDER BY [Date] DESC;");
+        parameters.Add("UserId", record.UserId);
+        parameters.Add("ClientId", record.ClientId);
 
         using var connection = new SqlConnection(this.ConnectionString);
         var logs = await connection.QueryAsync(sqlBuilder.ToString(), parameters);
@@ -516,7 +509,7 @@ public class TransactionLoggerService
         var sqlBuilder = new StringBuilder(@"
             SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [CreatedById] as UserId
             FROM [Klondike].[TransactionLogs]
-            WHERE ([ProductSymbol] = @ProductSymbol) AND ([CreatedById] = @UserId) AND ([ClientId] = @ClientId) ORDER BY [Date] ASC, [Id] ASC;");
+            WHERE ([ProductSymbol] = @ProductSymbol) AND ([CreatedById] = @UserId) AND ([ClientId] = @ClientId) ORDER BY [Date] DESC;");
 
         var parameters = new DynamicParameters();
         parameters.Add("ProductSymbol", record.ProductSymbol);
@@ -639,7 +632,7 @@ public class TransactionLoggerService
         var sqlBuilder = new StringBuilder(@"
             SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [Notes]
             FROM [Klondike].[TransactionLogs]
-            WHERE [CreatedById] = @UserId AND [ClientId] = @ClientId AND [IsDeleted] = 0");
+            WHERE [CreatedById] = @UserId AND [ClientId] = @ClientId");
 
         var parameters = new DynamicParameters();
         parameters.Add("UserId", record.UserId);
