@@ -430,6 +430,11 @@ public class TransactionLoggerService
             record.ClientId
         })).ToList();
 
+        if (!openPositions.Any())
+        {
+            return "[]";
+        }
+
         // Apply presentation-layer transformations after fetching the data.
         foreach (var position in openPositions)
         {
@@ -452,7 +457,7 @@ public class TransactionLoggerService
             p.TotalCost
         });
 
-        return result.Any() ? JsonConvert.SerializeObject(result) : string.Empty;
+        return JsonConvert.SerializeObject(result);
     }
 
     public async Task<string> GetTransactionLogById(SecurityTransactionLog record)
@@ -509,7 +514,7 @@ public class TransactionLoggerService
         var sqlBuilder = new StringBuilder(@"
             SELECT [Id], [Date], [OperationId], [ProductCategoryId], [ProductId], [ProductSymbol], [Quantity], [Price], [Fees], [CreatedById] as UserId
             FROM [Klondike].[TransactionLogs]
-            WHERE ([ProductSymbol] = @ProductSymbol) AND ([CreatedById] = @UserId) AND ([ClientId] = @ClientId) ORDER BY [Date] DESC;");
+            WHERE ([ProductSymbol] = @ProductSymbol) AND ([CreatedById] = @UserId) AND ([ClientId] = @ClientId) ORDER BY [Date] ASC;"); // this one really must be ASC ordered
 
         var parameters = new DynamicParameters();
         parameters.Add("ProductSymbol", record.ProductSymbol);
