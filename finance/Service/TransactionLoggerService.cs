@@ -137,9 +137,20 @@ public class TransactionLoggerService
             decimal? newCashBalance = null;
             if (result == 1)
             {
-                // Revert the old transaction's cash impact and apply the new one.
-                decimal? oldRevertedBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, oldTransaction, revert: true); // oldTransaction can be null
-                newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, record, currency: "USD", startingBalance: oldRevertedBalance);
+                // Smartly update cash balance only if relevant fields have changed.
+                // This prevents incorrect balance changes when updating non-financial fields like notes or date.
+                bool cashImpactChanged = oldTransaction is null ||
+                                         oldTransaction.OperationId != record.OperationId ||
+                                         oldTransaction.Quantity != record.Quantity ||
+                                         oldTransaction.Price != record.Price ||
+                                         oldTransaction.Fees != record.Fees;
+
+                if (cashImpactChanged)
+                {
+                    // Revert the old transaction's cash impact and apply the new one.
+                    decimal? oldRevertedBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, oldTransaction, revert: true);
+                    newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, record, currency: "USD", startingBalance: oldRevertedBalance);
+                }
 
                 // Recalculate for the new/current product symbol.
                 await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, record.ProductSymbol!);
