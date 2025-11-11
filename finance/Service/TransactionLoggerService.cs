@@ -732,10 +732,11 @@ public class TransactionLoggerService
 
         // Step 1: Get multipliers for the product to calculate the correct gross value.
         const string getMultipliersSql = @"
-            SELECT ISNULL(p.ContractMultiplier, 1), ISNULL(pc.Multiplier, 1)
-            FROM [Klondike].[Products] AS p
-            JOIN [Klondike].[ProductCategories] AS pc ON p.ProductCategoryId = pc.Id
-            WHERE p.ProductCategoryId = @ProductCategoryId AND p.Id = @ProductId";
+            SELECT ISNULL(p.ContractMultiplier, 1) AS ContractMultiplier, 
+                   ISNULL(pc.Multiplier, 1) AS CategoryMultiplier
+            FROM [Klondike].[ProductCategories] AS pc
+            LEFT JOIN [Klondike].[Products] AS p ON p.ProductCategoryId = pc.Id AND p.Id = @ProductId
+            WHERE pc.Id = @ProductCategoryId";
 
         var multipliers = await connection.QuerySingleOrDefaultAsync<(decimal, decimal)>(
             getMultipliersSql, 
