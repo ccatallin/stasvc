@@ -23,8 +23,8 @@ BEGIN
     SET NOCOUNT ON;
 
     MERGE [Klondike].[CashBalances] AS target
-    USING (SELECT @ClientId AS ClientId, @Currency AS Currency) AS source
-    ON (target.ClientId = source.ClientId AND target.Currency = source.Currency)
+    USING (SELECT @ClientId AS ClientId, @UserId AS UserId, @Currency AS Currency) AS source
+    ON (target.ClientId = source.ClientId AND target.CreatedById = source.UserId AND target.Currency = source.Currency)
     WHEN MATCHED THEN
         UPDATE SET
             target.Balance = target.Balance + @AmountChange,
@@ -32,11 +32,11 @@ BEGIN
             target.Modified = GETUTCDATE()
     WHEN NOT MATCHED THEN
         INSERT (ClientId, Balance, Currency, CreatedById, Created, ModifiedById, Modified)
-        VALUES (@ClientId, @AmountChange, @Currency, @UserId, GETUTCDATE(), @UserId, GETUTCDATE());
+        VALUES (@ClientId, @AmountChange, @Currency, @UserId, GETUTCDATE(), @UserId, GETUTCDATE()); -- CreatedById is the user
 
     -- Select the new balance into the output parameter
     SELECT @NewBalance = Balance
     FROM [Klondike].[CashBalances]
-    WHERE ClientId = @ClientId AND Currency = @Currency;
+    WHERE ClientId = @ClientId AND CreatedById = @UserId AND Currency = @Currency;
 END
 GO

@@ -18,6 +18,6 @@ BEGIN
 
     SELECT [Balance] AS [CashBalance], [Currency]
     FROM [Klondike].[CashBalances]
-    WHERE ([ClientId] = @ClientId) AND ([CreatedById] = @UserId);
+    WHERE ([ClientId] = @ClientId) AND ([CreatedById] = @UserId); -- This query was already correct! No changes needed.
 END
 GO
