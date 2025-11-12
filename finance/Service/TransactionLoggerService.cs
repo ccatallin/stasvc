@@ -1013,6 +1013,19 @@ public class TransactionLoggerService
         return lots;
     }
 
+    /// <summary>
+    /// Executes the stored procedure to create a daily snapshot of all cash balances.
+    /// This is intended to be called by a scheduled job.
+    /// </summary>
+    public async Task CreateDailyCashBalanceSnapshotsAsync()
+    {
+        using var connection = new SqlConnection(this.ConnectionString);
+        const string sql = "[Klondike].[createDailyCashBalanceSnapshots]";
+        
+        // We pass null for the @SnapshotDate parameter, so the stored procedure
+        // will use its default, which is the current UTC date.
+        await connection.ExecuteAsync(sql, commandType: CommandType.StoredProcedure);
+    }
 
     string ConnectionString { get; }
 
