@@ -12,7 +12,9 @@ GO
 --              rather than creating a duplicate.
 -- =============================================
 CREATE OR ALTER PROCEDURE [Klondike].[createDailyCashBalanceSnapshots]
-    @SnapshotDate DATE = NULL
+
+@SnapshotDate DATE = NULL
+
 AS
 BEGIN
     SET NOCOUNT ON;
