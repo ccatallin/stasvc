@@ -91,7 +91,7 @@ namespace FalxGroup.Finance.Function
                     }
                     case "PUT":
                     {
-                        var response = await _processor.UpdateCashTransaction(record);
+                        var response = await _processor.UpdateCashTransactionLog(record);
                         if (response.Item1 == 1)
                         {
                             statusCode = HttpStatusCode.OK;
@@ -106,7 +106,7 @@ namespace FalxGroup.Finance.Function
                     }
                     case "DELETE":
                     {
-                        var response = await _processor.DeleteCashTransaction(record);
+                        var response = await _processor.DeleteCashTransactionLog(record);
                         if (response.Item1 == 1)
                         {
                             statusCode = HttpStatusCode.OK;

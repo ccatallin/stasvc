@@ -114,7 +114,7 @@ public class TransactionLoggerService
             var oldProductSymbol = oldTransaction?.ProductSymbol;
 
             // Now, execute the update.
-            const string updateSql = "[Klondike].[updateTransactionLogNew]";
+            const string updateSql = "[Klondike].[updateTransactionLog]";
             var parameters = new DynamicParameters();
             parameters.Add("@Id", record.Id);
             parameters.Add("@Date", record.Date);
@@ -193,7 +193,7 @@ public class TransactionLoggerService
             var productSymbol = deletedTransaction?.ProductSymbol;
 
             // Execute the delete.
-            const string deleteSql = "[Klondike].[deleteTransactionLogNew]";
+            const string deleteSql = "[Klondike].[deleteTransactionLog]";
             var parameters = new DynamicParameters();
             parameters.Add("@Id", record.Id);
             parameters.Add("@ModifiedById", record.UserId);
@@ -271,7 +271,7 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string?, decimal?>> UpdateCashTransaction(CashTransactionLog record)
+    public async Task<Tuple<int, string?, decimal?>> UpdateCashTransactionLog(CashTransactionLog record)
     {
         if (record == null || string.IsNullOrWhiteSpace(record.Id))
         {
@@ -287,7 +287,7 @@ public class TransactionLoggerService
             const string getOldTxSql = "SELECT * FROM [Klondike].[CashTransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
             var oldTransaction = await connection.QuerySingleOrDefaultAsync<CashTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
 
-            const string updateSql = "[Klondike].[updateCashTransaction]";
+            const string updateSql = "[Klondike].[updateCashTransactionLog]";
             var parameters = new DynamicParameters();
             parameters.Add("@Id", record.Id);
             parameters.Add("@Date", record.Date);
@@ -324,7 +324,7 @@ public class TransactionLoggerService
         }
     }
 
-    public async Task<Tuple<int, string?, decimal?>> DeleteCashTransaction(CashTransactionLog record)
+    public async Task<Tuple<int, string?, decimal?>> DeleteCashTransactionLog(CashTransactionLog record)
     {
         if (string.IsNullOrWhiteSpace(record?.Id))
         {
@@ -340,7 +340,7 @@ public class TransactionLoggerService
             const string getOldTxSql = "SELECT * FROM [Klondike].[CashTransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
             var deletedTransaction = await connection.QuerySingleOrDefaultAsync<CashTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
 
-            const string deleteSql = "[Klondike].[deleteCashTransaction]";
+            const string deleteSql = "[Klondike].[deleteCashTransactionLog]";
             var parameters = new DynamicParameters();
             parameters.Add("@Id", record.Id);
             parameters.Add("@ModifiedById", record.UserId);

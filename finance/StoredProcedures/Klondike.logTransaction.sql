@@ -6,7 +6,7 @@ GO
 -- Author:      Catalin Calugaroiu & Gemini Code Assist
 -- Create date: 2025-10-17
 -- Description: Inserts a transaction. Snapshot recalculation is handled by the application layer.
-CREATE OR ALTER  PROCEDURE [Klondike].[logTransactionNew]
+CREATE OR ALTER  PROCEDURE [Klondike].[logTransaction]
 
 @Date datetime,
 @OperationId int, /* BUY/SELL */

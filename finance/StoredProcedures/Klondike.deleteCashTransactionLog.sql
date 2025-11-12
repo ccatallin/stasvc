@@ -7,7 +7,7 @@ GO
 -- Create date: 2025-10-18
 -- Description: Marks a cash transaction record as deleted.
 -- =============================================
-CREATE OR ALTER PROCEDURE [Klondike].[deleteCashTransaction]
+CREATE OR ALTER PROCEDURE [Klondike].[deleteCashTransactionLog]
 
 @Id VARCHAR(100),
 @ModifiedById BIGINT,

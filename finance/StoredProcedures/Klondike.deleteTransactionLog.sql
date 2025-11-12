@@ -7,7 +7,7 @@ GO
 -- Create date: 2025-10-17
 -- Description:	Deletes a transaction. Snapshot recalculation is handled by the application layer.
 -- =============================================
-CREATE OR ALTER PROCEDURE [Klondike].[deleteTransactionLogNew]
+CREATE OR ALTER PROCEDURE [Klondike].[deleteTransactionLog]
 
 @Id AS VARCHAR(100),
 @ModifiedById AS BIGINT,

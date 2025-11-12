@@ -8,7 +8,7 @@ GO
 -- Description: Updates an existing cash transaction record.
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [Klondike].[updateCashTransaction]
+CREATE OR ALTER PROCEDURE [Klondike].[updateCashTransactionLog]
 @Id VARCHAR(100),
 @Date DATETIME,
 @OperationId INT,
