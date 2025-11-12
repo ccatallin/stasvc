@@ -50,7 +50,7 @@ public class TransactionLoggerService
 
         try
         {
-            const string sql = "[Klondike].[logTransactionNew]";
+            const string sql = "[Klondike].[logTransaction]";
             var parameters = new DynamicParameters();
             parameters.Add("@Date", record.Date);
             parameters.Add("@OperationId", record.OperationId);
