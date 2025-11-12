@@ -151,6 +151,15 @@ public class TransactionLoggerService
                     decimal? oldRevertedBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, oldTransaction, revert: true);
                     newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, record, currency: "USD", startingBalance: oldRevertedBalance);
                 }
+                else
+                {
+                    // If cash impact hasn't changed, we still need to return the current balance.
+                    const string getBalanceSql = "SELECT Balance FROM [Klondike].[CashBalances] WHERE CreatedById = @UserId AND ClientId = @ClientId AND Currency = 'USD'";
+                    newCashBalance = await connection.QuerySingleOrDefaultAsync<decimal?>(
+                        getBalanceSql, 
+                        new { record.UserId, record.ClientId }, 
+                        transaction);
+                }
 
                 // Recalculate for the new/current product symbol.
                 await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, record.ProductSymbol!);
