@@ -648,7 +648,7 @@ public class TransactionLoggerService
             results.AddRange(realizedLots);
         }
 
-        return JsonConvert.SerializeObject(results);
+        return JsonConvert.SerializeObject(results.OrderBy(r => (DateTime)((dynamic)r).LastTransactionDate));
     }
 
     public async Task<string> GetTransactionLogs(SecurityTransactionLog record)
