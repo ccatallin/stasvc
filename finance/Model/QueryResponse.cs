@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace FalxGroup.Finance.Model
 {
 
@@ -26,6 +28,16 @@ public class QueryResponse
     public string? MarketSymbol { get; set; }
 
     public string? Value { get; set; }
+
+    public string ToJson()
+    {
+        return JsonSerializer.Serialize(this, new JsonSerializerOptions() { WriteIndented = true });
+    }
+
+    public override string ToString()
+    {
+        return $"{Symbol} ({MarketSymbol}): {Value} [{StatusCode}]";
+    }
 
 } /* end class QueryResponse */
 

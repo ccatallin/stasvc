@@ -1,128 +1,72 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 
 namespace FalxGroup.Finance.Util
 {
 
 public class TickerCache
 {
-    private Mutex cacheAccessControl;        
-    private Dictionary<string, Tuple<DateTime, string>> cache;
+    private readonly object _lock = new object();
+    private Dictionary<string, (DateTime Timestamp, string Value)> cache;
 
     public TickerCache(int timeout /* minutes */ = 15)
     {
-        this.cache = new Dictionary<string, Tuple<DateTime, string>>();
-        this.cacheAccessControl = new System.Threading.Mutex();
+        this.cache = new Dictionary<string, (DateTime, string)>();
         this.Timeout = timeout; 
     }
 
     public int Timeout { get; set; }
-    private bool IsTimeout(string key) => this.Timeout < DateTime.Now.Subtract(this.cache[key].Item1).Minutes;    
+    
+    private bool IsTimeout(string key) 
+    {
+        // Use TotalMinutes. 'Minutes' only returns the minute component (0-59).
+        // If diff is 65 minutes, .Minutes is 5, which is < Timeout (15), causing a bug.
+        return this.Timeout < (DateTime.UtcNow - this.cache[key].Timestamp).TotalMinutes;
+    }
 
     public bool IsExpired(string key)
     {
-        bool expired = false;
-
-        try
+        lock (_lock)
         {
-            cacheAccessControl.WaitOne();
-
-            if (this.IsTimeout(key))
+            if (this.cache.ContainsKey(key))
             {
-                expired = true;
+                return this.IsTimeout(key);
             }
+            return true; // Consider expired/invalid if not present
         }
-        catch (Exception)
-        {
-            // not interested in error informations here
-        }
-        finally
-        {
-            cacheAccessControl.ReleaseMutex();
-        }
-
-        return expired;        
     }
 
     public bool ContainsKey(string key)
     {
-        bool exists = false;
-
-        try
+        lock (_lock)
         {
-            cacheAccessControl.WaitOne();
-            exists = this.cache.ContainsKey(key);
+            return this.cache.ContainsKey(key);
         }
-        catch (Exception)
-        {
-            // not interested in error informations here
-        }
-        finally
-        {
-            cacheAccessControl.ReleaseMutex();
-        }
-
-        return exists;
     }
 
-    public Tuple<DateTime, string>? GetValueOrDefault(string key)
+    public (DateTime, string)? GetValueOrDefault(string key)
     {
-        try
+        lock (_lock)
         {
-            cacheAccessControl.WaitOne();
-
-            if (!this.IsTimeout(key))
+            if (this.cache.ContainsKey(key) && !this.IsTimeout(key))
             {
-                if (this.cache.TryGetValue(key, out var value))
-                {
-                    return value;
-                }
+                return this.cache[key];
             }
+            return null;
         }
-        catch (Exception)
-        {
-            // not interested in error informations here
-        }
-        finally
-        {
-            cacheAccessControl.ReleaseMutex();
-        }
-
-        return null;
     }
 
     public void Add(string key, string value)
     {
-        try
-        {
-            cacheAccessControl.WaitOne();
-            this.cache.Add(key, new Tuple<DateTime, string>(DateTime.Now, value));
-        }
-        catch (Exception)
-        {
-            // not interested in informations for errors here
-        }
-        finally
-        {
-            cacheAccessControl.ReleaseMutex();
-        }
+        Update(key, value);
     }
 
     public void Update(string key, string value)
     {
-        try
+        lock (_lock)
         {
-            cacheAccessControl.WaitOne();
-            this.cache[key] = new Tuple<DateTime, string>(DateTime.Now, value);
-        }
-        catch (Exception)
-        {
-            // not interested in informations for errors here
-        }
-        finally
-        {
-            cacheAccessControl.ReleaseMutex();
+            // Indexer [] handles both Add and Update
+            this.cache[key] = (DateTime.UtcNow, value);
         }
     }
 
