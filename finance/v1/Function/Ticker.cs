@@ -1,19 +1,17 @@
 using System.Text;
-using System.Threading.Tasks;
 using System.Net;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.Logging;
 // --
 using FalxGroup.Finance.Service;
-using System.Linq;
 using Newtonsoft.Json;
 
 namespace FalxGroup.Finance.Function
 {
     public class Ticker
     {
-        private const string version = "2.0.1-isolated";
+        private const string version = "2.0.2-isolated";
         private readonly TickerService _processor;
         private readonly ILogger _logger;
 
@@ -29,49 +27,64 @@ namespace FalxGroup.Finance.Function
             string? symbol,
             string? market)
         {
-            var httpResponse = req.CreateResponse(HttpStatusCode.OK);
-            httpResponse.Headers.Add("Content-Type", "application/json; charset=utf-8");
-
-            // Handle multiple symbols, passed as a comma-separated string
-            if (symbol != null && symbol.Contains(','))
+            try
             {
-                var symbols = symbol.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                var tickerTasks = symbols.Select(s => _processor.Run(_logger, nameof(Ticker), version, s, market));
-                var results = await Task.WhenAll(tickerTasks);
+                var httpResponse = req.CreateResponse(HttpStatusCode.OK);
+                httpResponse.Headers.Add("Content-Type", "application/json; charset=utf-8");
 
-                var successfulResults = results.Where(r => r.StatusCode == 200 || r.StatusCode == 201).ToList();
-                var failedSymbols = results.Where(r => r.StatusCode != 200 && r.StatusCode != 201).Select(r => r.Symbol).ToList();
-
-                var responseObject = new
+                // Handle multiple symbols, passed as a comma-separated string
+                if (symbol != null && symbol.Contains(','))
                 {
-                    StatusCode = successfulResults.Any() ? (int)HttpStatusCode.OK : (int)HttpStatusCode.NotFound,
-                    Message = $"Processed {symbols.Length} symbols. {successfulResults.Count} succeeded, {failedSymbols.Count} failed.",
-                    Tickers = successfulResults.ToDictionary(r => r.Symbol!, r => r.Value),
-                    FailedSymbols = failedSymbols
-                };
+                    var symbols = symbol.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var tickerTasks = symbols.Select(s => _processor.Run(nameof(Ticker), version, s, market));
+                    var results = await Task.WhenAll(tickerTasks);
 
-                await httpResponse.WriteStringAsync(JsonConvert.SerializeObject(responseObject, Formatting.Indented));
-            }
-            else // Handle a single symbol
-            {
-                var response = await _processor.Run(_logger, nameof(Ticker), version, symbol, market);
+                    var successfulResults = results.Where(r => r.StatusCode == 200 || r.StatusCode == 201).ToList();
+                    var failedSymbols = results.Where(r => r.StatusCode != 200 && r.StatusCode != 201).Select(r => r.Symbol).ToList();
 
-                StringBuilder responseBuilder = new StringBuilder();
+                    var responseObject = new
+                    {
+                        StatusCode = successfulResults.Any() ? (int)HttpStatusCode.OK : (int)HttpStatusCode.NotFound,
+                        Message = $"Processed {symbols.Length} symbols. {successfulResults.Count} succeeded, {failedSymbols.Count} failed.",
+                        Tickers = successfulResults.ToDictionary(r => r.Symbol!, r => r.Value),
+                        FailedSymbols = failedSymbols
+                    };
 
-                responseBuilder.Append("{")
-                    .Append("\"StatusCode\":").Append($"{response.StatusCode}")
-                    .Append(", \"Message\": \"").Append(response.Message).Append("\"");
-
-                if ((200 == response.StatusCode) || (201 == response.StatusCode))
+                    await httpResponse.WriteStringAsync(JsonConvert.SerializeObject(responseObject, Formatting.Indented));
+                }
+                else // Handle a single symbol
                 {
-                    responseBuilder.Append(", \"").Append(response.Symbol).Append("\":").Append(response.Value);
+                    var response = await _processor.Run(nameof(Ticker), version, symbol, market);
+
+                    StringBuilder responseBuilder = new StringBuilder();
+
+                    responseBuilder.Append("{")
+                        .Append("\"StatusCode\":").Append($"{response.StatusCode}")
+                        .Append(", \"Message\": \"").Append(response.Message).Append("\"");
+
+                    if ((200 == response.StatusCode) || (201 == response.StatusCode))
+                    {
+                        responseBuilder.Append(", \"").Append(response.Symbol).Append("\":").Append(response.Value);
+                    }
+
+                    responseBuilder.Append("}");
+                    await httpResponse.WriteStringAsync(responseBuilder.ToString());
                 }
 
-                responseBuilder.Append("}");
-                await httpResponse.WriteStringAsync(responseBuilder.ToString());
+                return httpResponse;
             }
-
-            return httpResponse;
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, exception.Message);
+                var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+                errorResponse.Headers.Add("Content-Type", "application/json; charset=utf-8");
+                await errorResponse.WriteStringAsync(JsonConvert.SerializeObject(new
+                {
+                    StatusCode = (int)HttpStatusCode.InternalServerError,
+                    Message = $"{nameof(Ticker)} version {version} ERROR: {exception.Message}"
+                }));
+                return errorResponse;
+            }
         }
 
     }
