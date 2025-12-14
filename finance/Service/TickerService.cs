@@ -14,7 +14,10 @@ namespace FalxGroup.Finance.Service
         public TickerService(int cacheTimeout = 15)
         {
             symbolsCache = new TickerCache(cacheTimeout);
-            yahooFinanceHttpQuery = new HttpQuery("https://finance.yahoo.com/quote/");
+            // yahooFinanceHttpQuery = new HttpQuery("https://finance.yahoo.com/quote/");
+            // Yahoo's internal JSON API endpoint for chart data
+            // https://query1.finance.yahoo.com/v8/finance/chart/BG?interval=1d&range=1d
+            yahooFinanceHttpQuery = new HttpQuery("https://query1.finance.yahoo.com/v8/finance/chart/");
             googleFinanceHttpQuery = new HttpQuery("https://www.google.com/finance/quote/");
         }
 
@@ -75,7 +78,8 @@ namespace FalxGroup.Finance.Service
 
         private async Task<QueryResponse> QueryYahooFinance(string symbol)
         {
-            string value = await yahooFinanceHttpQuery.GetValueAsync($"{symbol}", "data-testid=\"qsp-price\">", "</");
+            // string value = await yahooFinanceHttpQuery.GetValueAsync($"{symbol}/", "data-testid=\"qsp-price\">", "</");
+            string value = await yahooFinanceHttpQuery.GetValueAsync($"{symbol}?interval=1d&range=1d", "regularMarketPrice");
             return CreateQueryResponse(symbol, null, value);
         }
 
