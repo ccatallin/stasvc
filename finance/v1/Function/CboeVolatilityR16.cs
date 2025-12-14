@@ -41,8 +41,7 @@ namespace FalxGroup.Finance.Function
             {
                 var indexSymbol = (string.IsNullOrEmpty(symbol) ? "VIX" : symbol.ToUpper());
 
-                var response = await _processor.Run(_logger, 
-                    functionName, version, 
+                var response = await _processor.Run(functionName, version, 
                     (cboeIndexes.Any(validSymbol => validSymbol == indexSymbol) ? indexSymbol : "VIX"), 
                     cboeIndexesMarketTicker);
 
