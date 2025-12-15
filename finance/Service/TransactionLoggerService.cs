@@ -27,6 +27,19 @@ namespace FalxGroup.Finance.Service
         public decimal TotalCost => Cost + Commission;
     }
 
+    public class LotSummary
+    {
+        public string ProductSymbol { get; set; } = string.Empty;
+        public int ProductCategoryId { get; set; }
+        public int ProductId { get; set; }
+        public DateTime FirstTransactionDate { get; set; }
+        public DateTime LastTransactionDate { get; set; }
+        public decimal NetQuantity { get; set; }
+        public decimal Profit { get; set; }
+        public decimal Fees { get; set; }
+        public decimal Total { get; set; }
+        public bool IsClosed { get; set; }
+    }
 
 public class TransactionLoggerService
 {
@@ -578,8 +591,9 @@ public class TransactionLoggerService
         if (record.ProductCategoryId > 0) { sqlBuilder.Append(" AND tl.ProductCategoryId = @ProductCategoryId"); parameters.Add("ProductCategoryId", record.ProductCategoryId); }
         if (record.ProductId > 0) { sqlBuilder.Append(" AND tl.ProductId = @ProductId"); parameters.Add("ProductId", record.ProductId); }
         if (!string.IsNullOrEmpty(record.ProductSymbol)) { sqlBuilder.Append(" AND tl.ProductSymbol = @ProductSymbol"); parameters.Add("ProductSymbol", record.ProductSymbol); }
-        if (record.StartDate.HasValue) { sqlBuilder.Append(" AND tl.Date >= @StartDate"); parameters.Add("StartDate", record.StartDate.Value); }
-        if (record.EndDate.HasValue) { sqlBuilder.Append(" AND tl.Date < @EndDate"); parameters.Add("EndDate", record.EndDate.Value); }
+        
+        // FIX: Do NOT filter by date in SQL. We need full history to calculate lots correctly.
+        // Date filtering must happen AFTER lots are calculated.
 
         sqlBuilder.Append(" ORDER BY tl.ProductSymbol, tl.Date ASC, tl.Id ASC;");
 
@@ -591,15 +605,37 @@ public class TransactionLoggerService
             return "[]";
         }
 
-        // 2. Group all transactions by product symbol, then process each group.
-        var results = new List<object>();
-        var transactionsBySymbol = allTransactions.GroupBy(t => t.ProductSymbol);
+        // 2. Calculate P&L using the extracted logic
+        var allLots = CalculatePnL(allTransactions);
+
+        // 3. Filter for realized (isClosed) lots
+        var realizedLots = allLots.Where(s => s.IsClosed);
+
+        // 4. Apply Date Filtering on the RESULTING lots (based on closing date)
+        if (record.StartDate.HasValue)
+        {
+            realizedLots = realizedLots.Where(r => r.LastTransactionDate >= record.StartDate.Value);
+        }
+        if (record.EndDate.HasValue)
+        {
+            realizedLots = realizedLots.Where(r => r.LastTransactionDate < record.EndDate.Value);
+        }
+
+        return JsonConvert.SerializeObject(realizedLots.OrderBy(r => r.LastTransactionDate));
+    }
+
+    /// <summary>
+    /// Pure logic to calculate P&L lots from a list of transactions.
+    /// </summary>
+    public static List<LotSummary> CalculatePnL(List<SecurityTransactionLog> transactions)
+    {
+        var results = new List<LotSummary>();
+        var transactionsBySymbol = transactions.GroupBy(t => t.ProductSymbol);
 
         foreach (var group in transactionsBySymbol)
         {
             var lots = GroupTransactionsIntoLots(group.ToList());
 
-            // 3. Summarize each lot.
             var lotSummaries = lots.Select(lot =>
             {
                 decimal netQuantity = 0;
@@ -627,7 +663,7 @@ public class TransactionLoggerService
                     realizedPL += (t.OperationId == 1 ? grossValue : -grossValue); // SELL is positive P/L, BUY is negative
                 }
 
-                return new
+                return new LotSummary
                 {
                     ProductSymbol = lot.First().ProductSymbol,
                     ProductCategoryId = lot.First().ProductCategoryId,
@@ -642,13 +678,9 @@ public class TransactionLoggerService
                 };
             });
 
-            // 4. Filter for realized (isClosed) or unrealized (most recent open lot).
-            // Assuming @realized = 1 for this method.
-            var realizedLots = lotSummaries.Where(s => s.IsClosed);
-            results.AddRange(realizedLots);
+            results.AddRange(lotSummaries);
         }
-
-        return JsonConvert.SerializeObject(results.OrderBy(r => (DateTime)((dynamic)r).LastTransactionDate));
+        return results;
     }
 
     public async Task<string> GetTransactionLogs(SecurityTransactionLog record)
@@ -978,7 +1010,7 @@ public class TransactionLoggerService
     /// </summary>
     /// <param name="transactions">A list of transactions, sorted by Date and Id.</param>
     /// <returns>A list of lots, where each lot is a list of transactions.</returns>
-    private List<List<SecurityTransactionLog>> GroupTransactionsIntoLots(List<SecurityTransactionLog> transactions)
+    public static List<List<SecurityTransactionLog>> GroupTransactionsIntoLots(List<SecurityTransactionLog> transactions)
     {
         if (transactions == null || !transactions.Any())
         {
