@@ -63,6 +63,10 @@ namespace FalxGroup.Finance.Model
         public decimal ContractMultiplier { get; set; } = 1;
         public decimal CategoryMultiplier { get; set; } = 1;
 
+        // Safe accessors: treat 0 as "no multiplier" (same as 1) to guard against bad DB data.
+        public decimal EffectiveContractMultiplier => ContractMultiplier <= 0 ? 1m : ContractMultiplier;
+        public decimal EffectiveCategoryMultiplier => CategoryMultiplier <= 0 ? 1m : CategoryMultiplier;
+
         public bool IsEmpty => string.IsNullOrWhiteSpace(this.ProductSymbol) || (0 == this.Quantity);
     }
 } /* end FalxGroup.Finance.Model namespace */

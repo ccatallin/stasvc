@@ -126,6 +126,15 @@ public class TransactionLoggerService
             var oldTransaction = await connection.QuerySingleOrDefaultAsync<SecurityTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
             var oldProductSymbol = oldTransaction?.ProductSymbol;
 
+            // For futures: revert any previously realized P&L BEFORE the SP changes the DB state.
+            // Without this, HandleFuturesPnLRealizationAsync later adds the new P&L on top of the
+            // old one that is already in the cash balance — causing double-counting.
+            decimal? newCashBalance = null;
+            if (oldTransaction != null)
+            {
+                newCashBalance = await RevertFuturesPnLIfClosedAsync(connection, (SqlTransaction)transaction, oldTransaction, newCashBalance);
+            }
+
             // Now, execute the update.
             const string updateSql = "[Klondike].[updateTransactionLog]";
             var parameters = new DynamicParameters();
@@ -147,7 +156,6 @@ public class TransactionLoggerService
 
             int result = parameters.Get<int>("@UpdatedCount");
 
-            decimal? newCashBalance = null;
             if (result == 1)
             {
                 // Smartly update cash balance only if relevant fields have changed.
@@ -214,6 +222,15 @@ public class TransactionLoggerService
             var deletedTransaction = await connection.QuerySingleOrDefaultAsync<SecurityTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
             var productSymbol = deletedTransaction?.ProductSymbol;
 
+            // For futures: revert any realized P&L BEFORE the SP hard-deletes the record.
+            // The delete SP removes the row from the DB; after that we can no longer query it
+            // to compute which P&L was realized when this trade closed the position.
+            decimal? newCashBalance = null;
+            if (deletedTransaction != null)
+            {
+                newCashBalance = await RevertFuturesPnLIfClosedAsync(connection, (SqlTransaction)transaction, deletedTransaction, newCashBalance);
+            }
+
             // Execute the delete.
             const string deleteSql = "[Klondike].[deleteTransactionLog]";
             var parameters = new DynamicParameters();
@@ -225,14 +242,12 @@ public class TransactionLoggerService
             await connection.ExecuteAsync(deleteSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
             int result = parameters.Get<int>("@DeletedCount");
 
-            decimal? newCashBalance = null;
             if (result > 0 && !string.IsNullOrEmpty(productSymbol))
             {
                 // Revert the cash impact of the deleted trade.
                 newCashBalance = await UpdateCashBalanceForSecurityTransactionAsync(connection, (SqlTransaction)transaction, deletedTransaction, revert: true);
-                
+
                 // Recalculate snapshots for the affected product.
-                // Note: P&L realization for deletes is complex and handled by the snapshot logic implicitly.
                 await UpdateSnapshotsForProductAsync(connection, (SqlTransaction)transaction, record.UserId, record.ClientId, productSymbol!);
             }
 
@@ -657,7 +672,7 @@ public class TransactionLoggerService
                     }
                     else
                     {
-                        grossValue = t.Quantity * t.Price * t.ContractMultiplier * t.CategoryMultiplier;
+                        grossValue = t.Quantity * t.Price * t.EffectiveContractMultiplier * t.EffectiveCategoryMultiplier;
                     }
 
                     realizedPL += (t.OperationId == 1 ? grossValue : -grossValue); // SELL is positive P/L, BUY is negative
@@ -796,6 +811,10 @@ public class TransactionLoggerService
             transaction);
 
         var (contractMultiplier, categoryMultiplier) = multipliers;
+        // Guard: Dapper returns (0,0) when ProductCategoryId has no row in ProductCategories.
+        // A multiplier of 0 means grossValue = 0, making SELL decrease cash instead of increase it.
+        if (contractMultiplier <= 0) contractMultiplier = 1m;
+        if (categoryMultiplier <= 0) categoryMultiplier = 1m;
 
         // Step 2 & 3: Determine the cash change amount. This is the most critical part.
         decimal amountChange;
@@ -874,7 +893,7 @@ public class TransactionLoggerService
                 }
                 else
                 {
-                    grossValue = t.Quantity * t.Price * t.ContractMultiplier * t.CategoryMultiplier;
+                    grossValue = t.Quantity * t.Price * t.EffectiveContractMultiplier * t.EffectiveCategoryMultiplier;
                 }
 
                 // SELL (OpId=1) is positive P/L, BUY (OpId=-1) is negative.
@@ -902,6 +921,48 @@ public class TransactionLoggerService
         return startingBalance;
     }
 
+    // Reverses a previously realized futures P&L if the last lot is currently closed.
+    // Must be called BEFORE modifying or deleting the transaction so the DB still reflects the old state.
+    private async Task<decimal?> RevertFuturesPnLIfClosedAsync(SqlConnection connection, SqlTransaction transaction, SecurityTransactionLog record, decimal? currentBalance, string currency = "USD")
+    {
+        if (record.ProductCategoryId != 3 || record.ProductSymbol is null) return currentBalance;
+
+        var allTransactions = await GetTransactionsForSnapshotAsync(connection, transaction, record.UserId, record.ClientId, record.ProductSymbol);
+        var lots = GroupTransactionsIntoLots(allTransactions);
+        var lastLot = lots.LastOrDefault();
+        if (lastLot == null) return currentBalance;
+
+        decimal netQuantity = lastLot.Sum(t => t.OperationId == -1 ? t.Quantity : -t.Quantity);
+        if (netQuantity != 0) return currentBalance;
+
+        decimal pnlToReverse = 0;
+        foreach (var t in lastLot)
+        {
+            decimal grossValue;
+            if (t.ProductCategoryId == 3 && t.ProductId == 5)
+            {
+                grossValue = t.Quantity * ((Math.Floor(t.Price) + (t.Price - Math.Floor(t.Price)) * 100m / 32m) * 1000m);
+            }
+            else
+            {
+                grossValue = t.Quantity * t.Price * t.EffectiveContractMultiplier * t.EffectiveCategoryMultiplier;
+            }
+            pnlToReverse += (t.OperationId == 1 ? grossValue : -grossValue);
+        }
+
+        if (pnlToReverse == 0) return currentBalance;
+
+        const string updateBalanceSql = "[Klondike].[updateCashBalance]";
+        var parameters = new DynamicParameters();
+        parameters.Add("@UserId", record.UserId);
+        parameters.Add("@ClientId", record.ClientId);
+        parameters.Add("@AmountChange", -pnlToReverse);
+        parameters.Add("@Currency", currency);
+        parameters.Add("@NewBalance", dbType: DbType.Decimal, direction: ParameterDirection.Output, precision: 24, scale: 5);
+
+        await connection.ExecuteAsync(updateBalanceSql, parameters, transaction: transaction, commandType: CommandType.StoredProcedure);
+        return parameters.Get<decimal?>("@NewBalance");
+    }
 
     private async Task<decimal?> UpdateCashBalanceForCashTransactionAsync(SqlConnection connection, SqlTransaction transaction, CashTransactionLog? record, bool revert = false, string currency = "USD")
     {
