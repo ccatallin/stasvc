@@ -642,62 +642,107 @@ public class TransactionLoggerService
     }
 
     /// <summary>
-    /// Pure logic to calculate P&L lots from a list of transactions.
+    /// Pure logic to calculate P&L using FIFO matching.
+    /// Each sell (or buy-to-close for shorts) that matches against open positions generates
+    /// a realized LotSummary entry immediately, including partial closes.
+    /// Fees are amortized proportionally to the matched quantity.
     /// </summary>
     public static List<LotSummary> CalculatePnL(List<SecurityTransactionLog> transactions)
     {
         var results = new List<LotSummary>();
-        var transactionsBySymbol = transactions.GroupBy(t => t.ProductSymbol);
 
-        foreach (var group in transactionsBySymbol)
+        foreach (var group in transactions.GroupBy(t => t.ProductSymbol))
         {
-            var lots = GroupTransactionsIntoLots(group.ToList());
+            var sorted = group.OrderBy(t => t.Date).ThenBy(t => t.Id).ToList();
+            // FIFO queue: each entry is an open trade with its remaining unmatched quantity.
+            var openPositions = new List<(SecurityTransactionLog Tx, decimal Open)>();
 
-            var lotSummaries = lots.Select(lot =>
+            foreach (var t in sorted)
             {
-                decimal netQuantity = 0;
-                decimal realizedPL = 0;
-                decimal totalFees = 0;
+                decimal netQty = openPositions.Sum(p => p.Tx.OperationId == -1 ? p.Open : -p.Open);
+                bool isClosing = openPositions.Count > 0 &&
+                                 ((t.OperationId == -1 && netQty < 0) ||  // BUY closes a short
+                                  (t.OperationId == 1  && netQty > 0));   // SELL closes a long
 
-                foreach (var t in lot)
+                if (!isClosing)
                 {
-                    decimal signedQuantity = t.OperationId == -1 ? t.Quantity : -t.Quantity;
-                    netQuantity += signedQuantity;
-                    totalFees += t.Fees;
-
-                    // GrossValue calculation, including ZB bond special logic.
-                    decimal grossValue;
-                    if (t.ProductCategoryId == 3 && t.ProductId == 5)
-                    {
-                        // Convert price like 117.18 to full dollar value
-                        grossValue = t.Quantity * ((Math.Floor(t.Price) + (t.Price - Math.Floor(t.Price)) * 100m / 32m) * 1000m);
-                    }
-                    else
-                    {
-                        grossValue = t.Quantity * t.Price * t.EffectiveContractMultiplier * t.EffectiveCategoryMultiplier;
-                    }
-
-                    realizedPL += (t.OperationId == 1 ? grossValue : -grossValue); // SELL is positive P/L, BUY is negative
+                    openPositions.Add((t, t.Quantity));
+                    continue;
                 }
 
-                return new LotSummary
-                {
-                    ProductSymbol = lot.First().ProductSymbol,
-                    ProductCategoryId = lot.First().ProductCategoryId,
-                    ProductId = lot.First().ProductId,
-                    FirstTransactionDate = lot.First().Date,
-                    LastTransactionDate = lot.Last().Date,
-                    NetQuantity = netQuantity,
-                    Profit = realizedPL,
-                    Fees = totalFees,
-                    Total = realizedPL - totalFees,
-                    IsClosed = netQuantity == 0
-                };
-            });
+                decimal remaining = t.Quantity;
 
-            results.AddRange(lotSummaries);
+                while (remaining > 0 && openPositions.Count > 0)
+                {
+                    var (openTx, openQty) = openPositions[0];
+                    decimal matched = Math.Min(remaining, openQty);
+
+                    decimal openGrossPerUnit  = GetLotGrossValue(openTx) / openTx.Quantity;
+                    decimal closeGrossPerUnit = GetLotGrossValue(t)      / t.Quantity;
+
+                    bool closingLong = t.OperationId == 1;
+                    decimal grossPL = closingLong
+                        ? (closeGrossPerUnit - openGrossPerUnit) * matched
+                        : (openGrossPerUnit  - closeGrossPerUnit) * matched;
+
+                    decimal totalFees = openTx.Fees * (matched / openTx.Quantity)
+                                      + t.Fees      * (matched / t.Quantity);
+
+                    results.Add(new LotSummary
+                    {
+                        ProductSymbol        = t.ProductSymbol!,
+                        ProductCategoryId    = t.ProductCategoryId,
+                        ProductId            = t.ProductId,
+                        FirstTransactionDate = openTx.Date,
+                        LastTransactionDate  = t.Date,
+                        NetQuantity          = 0,
+                        Profit               = grossPL,
+                        Fees                 = totalFees,
+                        Total                = grossPL - totalFees,
+                        IsClosed             = true
+                    });
+
+                    if (matched >= openQty)
+                        openPositions.RemoveAt(0);
+                    else
+                        openPositions[0] = (openTx, openQty - matched);
+
+                    remaining -= matched;
+                }
+
+                // Quantity that exceeded (or flipped) the open position becomes a new open entry.
+                if (remaining > 0)
+                    openPositions.Add((t, remaining));
+            }
+
+            // Remaining open (unrealized) positions — emitted as IsClosed = false so callers
+            // that want to display open lots can still do so; the P&L report filters them out.
+            foreach (var (openTx, openQty) in openPositions)
+            {
+                results.Add(new LotSummary
+                {
+                    ProductSymbol        = openTx.ProductSymbol!,
+                    ProductCategoryId    = openTx.ProductCategoryId,
+                    ProductId            = openTx.ProductId,
+                    FirstTransactionDate = openTx.Date,
+                    LastTransactionDate  = openTx.Date,
+                    NetQuantity          = openTx.OperationId == -1 ? openQty : -openQty,
+                    Profit               = 0,
+                    Fees                 = openTx.Fees * (openQty / openTx.Quantity),
+                    Total                = 0,
+                    IsClosed             = false
+                });
+            }
         }
+
         return results;
+    }
+
+    private static decimal GetLotGrossValue(SecurityTransactionLog t)
+    {
+        if (t.ProductCategoryId == 3 && t.ProductId == 5)
+            return t.Quantity * ((Math.Floor(t.Price) + (t.Price - Math.Floor(t.Price)) * 100m / 32m) * 1000m);
+        return t.Quantity * t.Price * t.EffectiveContractMultiplier * t.EffectiveCategoryMultiplier;
     }
 
     public async Task<string> GetTransactionLogs(SecurityTransactionLog record)
