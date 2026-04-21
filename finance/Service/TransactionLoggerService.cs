@@ -122,7 +122,8 @@ public class TransactionLoggerService
         try
         {
             // First, get the original transaction details to revert its cash impact.
-            const string getOldTxSql = "SELECT * FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
+            // Alias CreatedById as UserId so Dapper maps it to SecurityTransactionLog.UserId.
+            const string getOldTxSql = "SELECT *, [CreatedById] AS [UserId] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
             var oldTransaction = await connection.QuerySingleOrDefaultAsync<SecurityTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
             var oldProductSymbol = oldTransaction?.ProductSymbol;
 
@@ -218,7 +219,8 @@ public class TransactionLoggerService
         try
         {
             // Get the full transaction details to revert its cash impact.
-            const string getOldTxSql = "SELECT * FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
+            // Alias CreatedById as UserId so Dapper maps it to SecurityTransactionLog.UserId.
+            const string getOldTxSql = "SELECT *, [CreatedById] AS [UserId] FROM [Klondike].[TransactionLogs] WHERE [Id] = @Id AND [ClientId] = @ClientId";
             var deletedTransaction = await connection.QuerySingleOrDefaultAsync<SecurityTransactionLog>(getOldTxSql, new { record.Id, record.ClientId }, transaction);
             var productSymbol = deletedTransaction?.ProductSymbol;
 
